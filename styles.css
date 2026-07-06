@@ -415,6 +415,13 @@
   background: color-mix(in srgb, var(--text-error, #c44) 6%, transparent 94%);
 }
 
+/* 正文点击触发的同步高亮 */
+.aa-card.is-scroll-synced {
+  box-shadow: 0 0 0 2px var(--interactive-accent), 0 4px 14px rgba(0,0,0,0.12);
+  transform: translateX(-4px);
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
 /* 内联编辑 */
 .aa-card.is-editing {
   box-shadow: 0 2px 6px rgba(0,0,0,0.08), 0 8px 20px rgba(0,0,0,0.06);

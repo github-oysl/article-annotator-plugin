@@ -12,7 +12,7 @@
 ## 功能
 
 - **文本高亮 + 批注**：在 Markdown 编辑器中高亮选中文字，添加类似 Word 的批注
-- **即点即编**：点击批注卡片直接原地进入编辑，无弹窗打断，blur 自动保存，Esc 取消
+- **即点即编**：单击批注卡片定位到正文，双击原地进入编辑，blur 自动保存，Esc 取消
 - **笔记本内页风格**：批注卡片采用横线纸面、装订孔、页边距竖线和色条标记，视觉统一为纸质笔记质感
 - **侧边栏管理**：在侧边栏面板中查看所有批注，支持定位、删除、导出
 - **批注卡片拖拽排序**：在侧边栏中自由拖拽调整批注顺序
@@ -21,15 +21,15 @@
   - 批注同步文件：`article-annotator/annotations.json`
   - 安装后不会立刻创建；首次开始批注或从旧版本迁移数据时会自动创建
 - **中英双语**：支持中英文界面切换
-- **6 色高亮**：暖黄、浅绿、浅蓝、浅紫、浅红、橙色，支持自定义颜色
-- **快捷键支持**：高亮、新建批注、删除批注均可绑定快捷键
+- **6 色高亮**：暖黄、琥珀、橙色、赤红、紫色、青色，支持自定义颜色
+- **快捷键支持**：高亮、新建批注均可绑定快捷键
 - **移动端适配**：支持 Android 和 iPad 触摸操作
 
 <details>
 <summary>🔤 Features (English)</summary>
 
 - **Text Highlight + Annotations**: Highlight selected text in Markdown editor and add Word-like comments
-- **Click-to-Edit**: Click any annotation card to edit notes in place — no modal popup, blur auto-saves, Esc cancels
+- **Click-to-Edit**: Single-click card to locate in text, double-click to edit in place — blur auto-saves, Esc cancels
 - **Notebook Style**: Cards feature ruled lines, punch holes, margin line, and color stripe for a paper notebook aesthetic
 - **Sidebar Management**: View all annotations in the sidebar panel with locate, delete, and export support
 - **Drag-and-Drop Cards**: Reorder annotation cards freely in the sidebar
@@ -38,8 +38,8 @@
   - Synced annotation file: `article-annotator/annotations.json`
   - Created automatically when you add your first annotation or when legacy data is migrated
 - **Bilingual**: Switch between Chinese and English interfaces
-- **6 Highlight Colors**: Warm Yellow, Light Green, Light Blue, Light Purple, Light Red, Orange — customizable
-- **Keyboard Shortcuts**: Highlight, new annotation, and delete can all be bound to shortcuts
+- **6 Highlight Colors**: Warm Yellow, Amber, Orange, Red, Purple, Cyan — customizable
+- **Keyboard Shortcuts**: Highlight and new annotation can be bound to shortcuts
 - **Mobile Support**: Touch-friendly on Android and iPad
 
 </details>
@@ -86,21 +86,22 @@
 ### 高亮文本
 
 1. 在 **编辑模式** 下选中文字
-2. 使用命令 `文章批注：高亮选中内容`（或绑定快捷键）
+2. 使用命令 `文章批注：高亮当前选中（默认颜色）`（或绑定快捷键）
 3. 高亮颜色在设置中可自定义
 
 ### 添加批注
 
-1. 高亮后，在侧边栏 `Article Annotator` 面板点击 **新建批注**
-2. 输入批注内容并保存
+1. 选中文字后，右键选择 **高亮** 或 **添加批注**（也可使用命令面板）
+2. 输入批注内容后自动保存
 3. 批注卡片支持拖拽排序
 
 ### 管理批注
 
-- **编辑**：点击批注卡片直接原地编辑，无需弹窗
+- **编辑**：双击批注卡片原地编辑，无需弹窗
+- **定位**：单击批注卡片定位到正文对应位置
 - **删除**：点击删除按钮（全局删除有二次确认）
 - **清空**：可一键清空所有批注
-- **导出**：支持导出为 JSON 格式
+- **导出**：支持导出为 Markdown 格式
 
 ### 阅读模式
 
@@ -112,21 +113,22 @@
 #### Highlight Text
 
 1. Select text in **Editing mode**
-2. Use command `Article Annotator: Highlight selected text` (or bind a shortcut)
+2. Use command `Article Annotator: Highlight current selection (default color)` (or bind a shortcut)
 3. Highlight color is customizable in settings
 
 #### Add Annotation
 
-1. After highlighting, click **New Annotation** in the `Article Annotator` sidebar panel
-2. Enter annotation content and save
+1. Select text, then right-click to choose **Highlight** or **Add Note** (or use command palette)
+2. Annotation content is saved automatically
 3. Annotation cards support drag-and-drop reordering
 
 #### Manage Annotations
 
-- **Edit**: Click annotation card to edit in place, no modal needed
+- **Edit**: Double-click annotation card to edit in place, no modal needed
+- **Locate**: Single-click annotation card to jump to its position in the text
 - **Delete**: Click delete button (global delete has double confirmation)
 - **Clear All**: One-click to clear all annotations
-- **Export**: Export as JSON
+- **Export**: Export as Markdown
 
 #### Reading Mode
 

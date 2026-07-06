@@ -2,6 +2,21 @@
 
 All notable changes to this plugin will be documented in this file.
 
+## [0.2.1] - 2026-07-06
+
+### Fixed
+- 命令面板去除"手机端："前缀，命令名称更简洁
+- 修正 README 文档与实际插件操作的多处不一致
+
+## [0.2.0] - 2026-06-28
+
+### Added
+- 笔记本内页风格卡片设计（Moleskine 横线底+装订孔+页边距竖线+色条）
+- 侧边栏单击定位正文、双击进入编辑模式
+- 自定义高亮颜色（第 7 色）支持
+- 批注分组功能（HighlightGroup）
+- 电脑/iPad/手机三端适配
+
 ## [0.1.15] - 2026-05-19
 
 ### Added

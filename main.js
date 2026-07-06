@@ -36,8 +36,8 @@ var LANGUAGES = {
     "exportAnnotations": "Export current file annotations",
     "searchAnnotations": "Search all annotations",
     "clearFileAnnotations": "Clear current file annotations",
-    "mobileHighlight": "Mobile: Highlight current selection (default color)",
-    "mobileAddNote": "Mobile: Add note to current selection"
+    "mobileHighlight": "Highlight current selection (default color)",
+    "mobileAddNote": "Add note to current selection"
   },
   "notifications": {
     "pluginLoaded": "📝 Article Annotator loaded",
@@ -122,7 +122,7 @@ var LANGUAGES = {
     "shortcutsHint": "💡 Set shortcuts in Obsidian Settings → Hotkeys",
     "notBound": "not bound",
     "readingModeNotice": "Note: Annotations are not visible in Reading mode. Please switch to Editing mode to view highlights.",
-    "aboutText": "Article Annotator 0.2.0 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
+    "aboutText": "Article Annotator 0.2.1 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
   },
   "colorNames": {
     "#FCD34D": "Warm Yellow",
@@ -158,8 +158,8 @@ var LANGUAGES = {
     "exportAnnotations": "导出当前文件批注",
     "searchAnnotations": "搜索全部批注",
     "clearFileAnnotations": "清空当前文件批注",
-    "mobileHighlight": "手机端：高亮当前选中（默认颜色）",
-    "mobileAddNote": "手机端：给当前选中写批注"
+    "mobileHighlight": "高亮当前选中（默认颜色）",
+    "mobileAddNote": "给当前选中写批注"
   },
   "notifications": {
     "pluginLoaded": "📝 文章批注已加载",
@@ -244,7 +244,7 @@ var LANGUAGES = {
     "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
     "notBound": "未绑定",
     "readingModeNotice": "说明：阅读模式当前不显示批注高亮，请在编辑模式下查看高亮。",
-    "aboutText": "文章批注 0.2.0 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
+    "aboutText": "文章批注 0.2.1 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
   },
   "colorNames": {
     "#FCD34D": "暖黄",
@@ -323,7 +323,8 @@ var highlightField = import_cm_state.StateField.define({
         } else {
           const marks = ranges.map((r) => import_cm_view.Decoration.mark({
             attributes: {
-              style: `background-color: ${r.color}40; border-bottom: 2px solid ${r.color}; border-radius: 2px;`
+              style: `background-color: ${r.color}40; border-bottom: 2px solid ${r.color}; border-radius: 2px;`,
+              "data-annotation-id": r.annotationId || ""
             }
           }).range(r.from, r.to));
           decorations = import_cm_view.Decoration.set(marks, true);
@@ -477,7 +478,7 @@ function refreshHighlights(plugin) {
     const from = doc.line(startLine).from + ann.position.startCh;
     const to = doc.line(endLine).from + ann.position.endCh;
     if (from >= 0 && to <= doc.length && from <= to) {
-      ranges.push({ from, to, color: ann.color });
+      ranges.push({ from, to, color: ann.color, annotationId: ann.id });
     }
   }
   cm.dispatch({ effects: setHighlightsEffect.of(ranges) });
@@ -542,6 +543,18 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
     console.log("\u{1F4DD} \u6587\u7AE0\u6279\u6CE8: loading...");
     await this.loadSettingsAndData();
     this.registerEditorExtension(highlightField);
+    const plugin = this;
+    this.registerEditorExtension(
+      import_cm_view.EditorView.domEventHandlers({
+        click: (event, view) => {
+          const target = event.target.closest?.('[data-annotation-id]');
+          const id = target?.dataset?.annotationId;
+          if (id) {
+            plugin.sidebarView?.scrollToCard(id);
+          }
+        }
+      })
+    );
     this.registerView(VIEW_TYPE, (leaf) => {
       this.sidebarView = new AnnotatorSidebarView(leaf, this);
       return this.sidebarView;
@@ -1887,6 +1900,15 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
       });
     }
   }
+  scrollToCard(annotationId) {
+    const card = this.containerEl.querySelector(`.aa-card[data-annotation-id="${annotationId}"]`);
+    if (!card)
+      return;
+    card.scrollIntoView({ block: "center", behavior: "smooth" });
+    this.containerEl.querySelectorAll(".aa-card.is-scroll-synced").forEach((el) => el.classList.remove("is-scroll-synced"));
+    card.classList.add("is-scroll-synced");
+    setTimeout(() => card.classList.remove("is-scroll-synced"), 1600);
+  }
   renderAnnotationCard(container, annotation) {
     const a = annotation;
     const isEditing = this.editingId === a.id;
@@ -2018,11 +2040,21 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
         this.render();
       };
 
-      // 点击卡片正文进入编辑
+      // 单击定位到正文，双击进入编辑
+      let clickTimer = null;
       body.addEventListener("click", (e) => {
         if (e.target.closest(".aa-card-actions")) return;
-        this.editingId = a.id;
-        this.render();
+        if (clickTimer) {
+          clearTimeout(clickTimer);
+          clickTimer = null;
+          this.editingId = a.id;
+          this.render();
+        } else {
+          clickTimer = setTimeout(() => {
+            clickTimer = null;
+            this.plugin.navigateToAnnotation(a);
+          }, 250);
+        }
       });
       body.style.cursor = "pointer";
     }
