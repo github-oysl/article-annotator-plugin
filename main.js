@@ -553,6 +553,7 @@ var LANGUAGES = {
       "ungroupConfirm": 'Remove ${n} annotations from "${name}"?',
       "ungrouped": "Ungrouped",
       "reassign": "Reassign",
+      "reassignHint": "Select the new sentence in the note, then reassign.",
       "anchorAmbiguous": "This sentence appears more than once",
       "anchorMissing": "The original sentence was not found",
       "anchorFileMissing": "The note file is gone",
@@ -701,6 +702,7 @@ var LANGUAGES = {
       "ungroupConfirm": "\u786E\u5B9A\u5C06\u300C${name}\u300D\u4E2D\u7684 ${n} \u4E2A\u6279\u6CE8\u53D6\u6D88\u5206\u7EC4\uFF1F",
       "ungrouped": "\u672A\u5206\u7EC4\u6279\u6CE8",
       "reassign": "\u91CD\u65B0\u6307\u5B9A",
+      "reassignHint": "\u5148\u5728\u6B63\u6587\u91CC\u9009\u4E2D\u65B0\u7684\u53E5\u5B50\uFF0C\u518D\u70B9\u91CD\u65B0\u6307\u5B9A\u3002",
       "anchorAmbiguous": "\u8FD9\u7BC7\u91CC\u6709\u591A\u5904\u76F8\u540C\u539F\u6587",
       "anchorMissing": "\u627E\u4E0D\u5230\u539F\u6765\u7684\u53E5\u5B50",
       "anchorFileMissing": "\u7B14\u8BB0\u6587\u4EF6\u5DF2\u7ECF\u4E0D\u5728",
@@ -1781,6 +1783,8 @@ function wrapRange(chunks, start, end, annotation, onOpen) {
     const mark = doc.createElement("span");
     mark.className = "aa-reading-highlight";
     mark.dataset.annotationId = annotation.id;
+    if (annotation.noteContent)
+      mark.title = annotation.noteContent;
     mark.style.backgroundColor = `${annotation.color}55`;
     mark.style.borderBottom = `2px solid ${annotation.color}`;
     mark.addEventListener("click", (event) => {
@@ -2507,8 +2511,18 @@ var AnnotatorSidebarView = class extends import_obsidian7.ItemView {
         const status = body.createDiv("aa-anchor-status");
         status.setText(anchorLabel);
       }
-      const lineInfo = body.createDiv("aa-card-line");
-      lineInfo.setText(getAnnotationLocationLabel(a, this.plugin));
+      if (a.anchor === "file-missing") {
+        const fileInfo = body.createDiv("aa-card-line");
+        fileInfo.setText(a.filePath);
+      } else if (a.anchor == null || a.anchor === "ok") {
+        const lineInfo = body.createDiv("aa-card-line");
+        lineInfo.setText(getAnnotationLocationLabel(a, this.plugin));
+      }
+      const located = a.anchor == null || a.anchor === "ok";
+      if (!located) {
+        const reassignHint = body.createDiv("aa-card-edit-hint");
+        reassignHint.setText(t("ui.reassignHint", this.plugin));
+      }
       const cardActions = body.createDiv("aa-card-actions");
       const editBtn = cardActions.createEl("button", {
         text: t("ui.edit", this.plugin),
@@ -2519,7 +2533,6 @@ var AnnotatorSidebarView = class extends import_obsidian7.ItemView {
         this.editingId = a.id;
         this.render();
       };
-      const located = a.anchor == null || a.anchor === "ok";
       if (!located) {
         const reassignBtn = cardActions.createEl("button", {
           text: t("ui.reassign", this.plugin),
@@ -2529,19 +2542,16 @@ var AnnotatorSidebarView = class extends import_obsidian7.ItemView {
           event.stopPropagation();
           void this.plugin.reassignAnnotation(a);
         };
+      } else {
+        const navBtn = cardActions.createEl("button", {
+          text: t("ui.navigate", this.plugin),
+          attr: { type: "button" }
+        });
+        navBtn.onclick = async (e) => {
+          e.stopPropagation();
+          await this.plugin.navigateToAnnotation(a);
+        };
       }
-      const navBtn = cardActions.createEl("button", {
-        text: t("ui.navigate", this.plugin),
-        attr: { type: "button" }
-      });
-      navBtn.onclick = async (e) => {
-        e.stopPropagation();
-        if (!located) {
-          await this.plugin.revealUnanchored(a);
-          return;
-        }
-        await this.plugin.navigateToAnnotation(a);
-      };
       const deleteBtn = cardActions.createEl("button", {
         text: t("ui.delete", this.plugin),
         attr: { type: "button" }
@@ -2565,10 +2575,8 @@ var AnnotatorSidebarView = class extends import_obsidian7.ItemView {
         const target = evt.target;
         if (!(target instanceof Element) || target.closest(".aa-card-actions"))
           return;
-        if (a.anchor && a.anchor !== "ok") {
-          void this.plugin.revealUnanchored(a);
+        if (a.anchor && a.anchor !== "ok")
           return;
-        }
         void this.plugin.navigateToAnnotation(a);
       });
       body.addClass("is-navigable");
