@@ -173,7 +173,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "shortcutsHint": "💡 Set shortcuts in Obsidian Settings → Hotkeys",
     "notBound": "not bound",
     "readingModeNotice": "Reading mode shows highlights that still match the text. The note file itself is not modified.",
-    "aboutText": "Article Annotator 0.2.4 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
+    "aboutText": "Article Annotator 0.2.5 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
   },
   "colorNames": {
     "#FCD34D": "Warm Yellow",
@@ -370,7 +370,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
     "notBound": "未绑定",
     "readingModeNotice": "阅读模式会显示对得上的高亮颜色，不会修改笔记原文。",
-    "aboutText": "文章批注 0.2.4 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
+    "aboutText": "文章批注 0.2.5 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
   },
   "colorNames": {
     "#FCD34D": "暖黄",

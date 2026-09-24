@@ -2,6 +2,18 @@
 
 All notable changes to this plugin will be documented in this file.
 
+## [0.2.5] - 2026-09-24
+
+### Changed
+- 当前文档侧栏改成阅读优先：搜索、数量标签和菜单收在顶部，卡片只留色边
+- 点击卡片定位原文；编辑和更多在悬停或触控时出现
+- 新增批注中心、选区工具条和行号槽圆点
+- 批注可以带标签。高亮和批注仍是同一条记录
+
+### Release
+- Tag: `0.2.5`（无 v 前缀）
+- Assets: `main.js`, `manifest.json`, `styles.css`
+
 ## [0.2.4] - 2026-09-24
 
 ### Added
