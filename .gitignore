@@ -8,3 +8,5 @@ Thumbs.db
 # 开发文件
 *.tmp
 *.bak
+node_modules
+*.map
