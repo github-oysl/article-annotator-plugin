@@ -623,7 +623,7 @@ var LANGUAGES = {
       "shortcutsHint": "\u{1F4A1} Set shortcuts in Obsidian Settings \u2192 Hotkeys",
       "notBound": "not bound",
       "readingModeNotice": "Reading mode shows highlights that still match the text. The note file itself is not modified.",
-      "aboutText": "Article Annotator 0.2.4 \u2014 Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n\u{1F4A1} Custom highlight color uses hex code (e.g., #FCD34D)."
+      "aboutText": "Article Annotator 0.2.5 \u2014 Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n\u{1F4A1} Custom highlight color uses hex code (e.g., #FCD34D)."
     },
     "colorNames": {
       "#FCD34D": "Warm Yellow",
@@ -820,7 +820,7 @@ var LANGUAGES = {
       "shortcutsHint": "\u{1F4A1} \u53EF\u5728 Obsidian \u8BBE\u7F6E \u2192 \u5FEB\u6377\u952E \u4E2D\u4E3A\u4E0A\u8FF0\u547D\u4EE4\u7ED1\u5B9A\u5FEB\u6377\u952E",
       "notBound": "\u672A\u7ED1\u5B9A",
       "readingModeNotice": "\u9605\u8BFB\u6A21\u5F0F\u4F1A\u663E\u793A\u5BF9\u5F97\u4E0A\u7684\u9AD8\u4EAE\u989C\u8272\uFF0C\u4E0D\u4F1A\u4FEE\u6539\u7B14\u8BB0\u539F\u6587\u3002",
-      "aboutText": "\u6587\u7AE0\u6279\u6CE8 0.2.4 \u2014 \u53C2\u8003 Microsoft Word \u6279\u6CE8\u8BBE\u8BA1\u3002\u6240\u6709\u6279\u6CE8\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E0D\u4FEE\u6539\u539F\u6587\u3002\u5F53\u524D\u5DF2\u652F\u6301\u7535\u8111\u3001iPad\u3001\u624B\u673A\u4E09\u7AEF\u540C\u6B65\uFF0C\u9700\u786E\u4FDD\u77E5\u8BC6\u5E93\u540C\u6B65\u6587\u4EF6 <strong><code>article-annotator/annotations.json</code></strong>\u3002\n\n\u{1F4A1} \u81EA\u5B9A\u4E49\u9AD8\u4EAE\u989C\u8272\u4F7F\u7528\u5341\u516D\u8FDB\u5236\u4EE3\u7801\uFF08\u5982 #FCD34D\uFF09\u3002"
+      "aboutText": "\u6587\u7AE0\u6279\u6CE8 0.2.5 \u2014 \u53C2\u8003 Microsoft Word \u6279\u6CE8\u8BBE\u8BA1\u3002\u6240\u6709\u6279\u6CE8\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E0D\u4FEE\u6539\u539F\u6587\u3002\u5F53\u524D\u5DF2\u652F\u6301\u7535\u8111\u3001iPad\u3001\u624B\u673A\u4E09\u7AEF\u540C\u6B65\uFF0C\u9700\u786E\u4FDD\u77E5\u8BC6\u5E93\u540C\u6B65\u6587\u4EF6 <strong><code>article-annotator/annotations.json</code></strong>\u3002\n\n\u{1F4A1} \u81EA\u5B9A\u4E49\u9AD8\u4EAE\u989C\u8272\u4F7F\u7528\u5341\u516D\u8FDB\u5236\u4EE3\u7801\uFF08\u5982 #FCD34D\uFF09\u3002"
     },
     "colorNames": {
       "#FCD34D": "\u6696\u9EC4",
