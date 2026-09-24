@@ -233,7 +233,7 @@ export async function removeAnnotation(plugin: ArticleAnnotator, id: string, rec
       plugin.pushAnnotationHistory("remove", target);
   }
 
-export function pushAnnotationHistory(plugin: ArticleAnnotator, type: AnnotationHistoryOp["type"], annotation: Annotation) {
+export function pushAnnotationHistory(plugin: ArticleAnnotator, type: AnnotationHistoryOp["type"], annotation: Annotation, previous?: Annotation) {
     if (annotation.fileType === "pdf")
       return;
     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
@@ -242,10 +242,29 @@ export function pushAnnotationHistory(plugin: ArticleAnnotator, type: Annotation
     const cm = getCodeMirror(view.editor);
     if (!cm)
       return;
-    dispatchAnnotationHistory(cm, { type, annotation });
+    dispatchAnnotationHistory(cm, { type, annotation, previous });
+  }
+
+async function replaceAnnotationSnapshot(plugin: ArticleAnnotator, annotation: Annotation) {
+    const idx = plugin.data.findIndex((item) => item.id === annotation.id);
+    if (idx === -1) {
+      await addAnnotation(plugin, annotation);
+      return;
+    }
+    plugin.data[idx] = annotation;
+    await plugin.saveAnnotations();
+    if (plugin.sidebarView)
+      plugin.sidebarView.update(plugin.activeFile);
+    refreshHighlights(plugin);
+    if (annotation.fileType === "pdf")
+      plugin.schedulePdfRender(annotation.filePath, 60);
   }
 
 export async function applyAnnotationHistory(plugin: ArticleAnnotator, op: AnnotationHistoryOp) {
+    if (op.type === "update") {
+      await replaceAnnotationSnapshot(plugin, op.annotation);
+      return;
+    }
     if (op.type === "remove") {
       if (!plugin.data.some((item) => item.id === op.annotation.id))
         return;

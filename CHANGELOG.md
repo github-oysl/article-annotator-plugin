@@ -2,6 +2,16 @@
 
 All notable changes to this plugin will be documented in this file.
 
+## [0.2.4] - 2026-09-24
+
+### Added
+- 光标放在已有批注或高亮上时，可以定位、编辑或删除
+- 编辑会改原来的那一条；删除后可以用撤销恢复
+
+### Release
+- Tag: `0.2.4`（无 v 前缀）
+- Assets: `main.js`, `manifest.json`, `styles.css`
+
 ## [0.2.3] - 2026-09-23
 
 ### Changed

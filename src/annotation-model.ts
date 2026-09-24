@@ -159,6 +159,56 @@ export function positionsOverlap(a: TextRange, b: TextRange): boolean {
   return true;
 }
 
+function isBefore(line: number, ch: number, otherLine: number, otherCh: number): boolean {
+  return line < otherLine || (line === otherLine && ch < otherCh);
+}
+
+/** 光标落在批注范围内，包含范围末尾，方便停在高亮最后一个字后面。 */
+export function cursorTouchesRange(position: TextRange, line: number, ch: number): boolean {
+  if (isBefore(line, ch, position.startLine, position.startCh))
+    return false;
+  if (isBefore(position.endLine, position.endCh, line, ch))
+    return false;
+  return true;
+}
+
+function spanRank(position: TextRange): number {
+  return (position.endLine - position.startLine) * 100000 + Math.max(0, position.endCh - position.startCh);
+}
+
+/**
+ * 找出光标或当前选区命中的 Markdown 批注。
+ * 多条重叠时取范围更小的那条。
+ */
+export function findMarkdownAnnotationAtCursor(annotations: readonly Annotation[], editor: Editor): Annotation | null {
+  const cursor = editor.getCursor();
+  const from = editor.getCursor("from");
+  const to = editor.getCursor("to");
+  const hasSelection = editor.getSelection().length > 0;
+  const selection: TextRange = {
+    startLine: from.line,
+    startCh: from.ch,
+    endLine: to.line,
+    endCh: to.ch,
+  };
+  const hits = annotations.filter((annotation) => {
+    if (annotation.fileType === "pdf" || !isMarkdownPosition(annotation.position))
+      return false;
+    if (hasSelection)
+      return positionsOverlap(annotation.position, selection);
+    return cursorTouchesRange(annotation.position, cursor.line, cursor.ch);
+  });
+  hits.sort((a, b) => {
+    if (!isMarkdownPosition(a.position) || !isMarkdownPosition(b.position))
+      return 0;
+    const rank = spanRank(a.position) - spanRank(b.position);
+    if (rank !== 0)
+      return rank;
+    return b.updated - a.updated;
+  });
+  return hits[0] ?? null;
+}
+
 // ==================== 颜色验证 ====================
 export function validateHexColor(hex: unknown): hex is string {
   if (!hex || typeof hex !== "string") return false;

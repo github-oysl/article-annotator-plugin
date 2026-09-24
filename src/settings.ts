@@ -205,7 +205,10 @@ export class AnnotatorSettingTab extends PluginSettingTab {
       ["search-annotations", "commands.searchAnnotations"],
       ["clear-file-annotations", "commands.clearFileAnnotations"],
       ["mobile-highlight-default-color", "commands.mobileHighlight"],
-      ["mobile-add-note-to-selection", "commands.mobileAddNote"]
+      ["mobile-add-note-to-selection", "commands.mobileAddNote"],
+      ["locate-annotation-at-cursor", "commands.locateAtCursor"],
+      ["edit-annotation-at-cursor", "commands.editAtCursor"],
+      ["delete-annotation-at-cursor", "commands.deleteAtCursor"]
     ];
     let stored: Record<string, unknown> = {};
     try {

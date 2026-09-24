@@ -21,6 +21,7 @@ import {
   ANNOTATION_STORE_FILE,
   DEFAULT_SETTINGS,
   captureMarkdownRange,
+  findMarkdownAnnotationAtCursor,
   formatTime,
   generateId,
   getAnnotationLocationLabel,
@@ -87,8 +88,8 @@ export default class ArticleAnnotator extends Plugin {
     });
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor, view) => {
-        const selection = editor.getSelection();
-        if (!selection)
+        this.addCursorAnnotationMenuItems(menu, editor, view);
+        if (!editor.getSelection())
           return;
         this.addAnnotationMenuItems(menu, editor, view);
       })
@@ -146,6 +147,27 @@ export default class ArticleAnnotator extends Plugin {
       name: t("commands.mobileAddNote", this),
       editorCallback: async (editor, view) => {
         await this.addNoteToSelection(editor, view);
+      }
+    });
+    this.addCommand({
+      id: "locate-annotation-at-cursor",
+      name: t("commands.locateAtCursor", this),
+      editorCallback: async (editor, view) => {
+        await this.locateAnnotationAtCursor(editor, view);
+      }
+    });
+    this.addCommand({
+      id: "edit-annotation-at-cursor",
+      name: t("commands.editAtCursor", this),
+      editorCallback: (editor, view) => {
+        this.editAnnotationAtCursor(editor, view);
+      }
+    });
+    this.addCommand({
+      id: "delete-annotation-at-cursor",
+      name: t("commands.deleteAtCursor", this),
+      editorCallback: async (editor, view) => {
+        await this.deleteAnnotationAtCursor(editor, view);
       }
     });
     this.addSettingTab(new AnnotatorSettingTab(this.app, this));
@@ -337,6 +359,96 @@ export default class ArticleAnnotator extends Plugin {
     if (leaf) {
       workspace.revealLeaf(leaf);
     }
+  }
+  // ==================== 光标处的旧批注 ====================
+  annotationAtCursor(editor: Editor, view: { file: TFile | null }): Annotation | null {
+    if (!view.file)
+      return null;
+    return findMarkdownAnnotationAtCursor(this.getAnnotationsForFile(view.file.path), editor);
+  }
+  /** 选中这条批注的原文，并让侧边栏滚到对应卡片。 */
+  selectAnnotationRange(editor: Editor, annotation: Annotation) {
+    if (!isMarkdownPosition(annotation.position))
+      return;
+    const position = annotation.position;
+    const from = { line: position.startLine, ch: position.startCh };
+    const to = { line: position.endLine, ch: position.endCh };
+    editor.setSelection(from, to);
+    editor.scrollIntoView({ from, to }, true);
+    this.sidebarView?.scrollToCard(annotation.id);
+  }
+  async locateAnnotationAtCursor(editor: Editor, view: { file: TFile | null }) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found) {
+      new Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    this.selectAnnotationRange(editor, found);
+    await this.activateSidebar();
+    this.selectAnnotationRange(editor, found);
+    new Notice(t("notifications.annotationLocated", this));
+  }
+  editAnnotationAtCursor(editor: Editor, view: { file: TFile | null }) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found) {
+      new Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    this.selectAnnotationRange(editor, found);
+    this.openNoteEditor(found);
+  }
+  async deleteAnnotationAtCursor(editor: Editor, view: { file: TFile | null }) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found) {
+      new Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    await this.removeAnnotation(found.id, true);
+    new Notice(t("notifications.annotationDeleted", this));
+  }
+  /** 修改已有批注或高亮的颜色和文字，不新建一条。 */
+  openNoteEditor(existing: Annotation) {
+    const modal = new NoteModal(this.app, this, {
+      highlightedText: existing.highlightedText,
+      color: existing.color,
+      noteContent: existing.noteContent
+    }, async (content, color) => {
+      const current = this.data.find((item) => item.id === existing.id);
+      if (!current)
+        return;
+      const before = JSON.parse(JSON.stringify(current)) as Annotation;
+      const noteContent = content.trim();
+      await this.updateAnnotation(existing.id, {
+        noteContent,
+        color,
+        type: noteContent ? "note" : "highlight"
+      });
+      const next = this.data.find((item) => item.id === existing.id);
+      if (!next)
+        return;
+      if (next.noteContent !== before.noteContent || next.color !== before.color || next.type !== before.type)
+        this.pushAnnotationHistory("update", next, before);
+      new Notice(t("notifications.annotationSaved", this));
+    });
+    modal.open();
+  }
+  addCursorAnnotationMenuItems(menu: Menu, editor: Editor, view: { file: TFile | null }) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found)
+      return;
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setIcon("pencil");
+      item.setTitle(t("commands.editAtCursor", this));
+      item.onClick(() => this.editAnnotationAtCursor(editor, view));
+    });
+    menu.addItem((item) => {
+      item.setIcon("trash");
+      item.setTitle(t("commands.deleteAtCursor", this));
+      item.onClick(() => {
+        void this.deleteAnnotationAtCursor(editor, view);
+      });
+    });
   }
   // ==================== 右键菜单 ====================
   addAnnotationMenuItems(menu: Menu, editor: Editor, view: { file: TFile | null }) {
@@ -642,8 +754,8 @@ export default class ArticleAnnotator extends Plugin {
   async removeAnnotation(id: string, recordHistory = false) {
     return store.removeAnnotation(this, id, recordHistory);
   }
-  pushAnnotationHistory(type: AnnotationHistoryOp["type"], annotation: Annotation) {
-    return store.pushAnnotationHistory(this, type, annotation);
+  pushAnnotationHistory(type: AnnotationHistoryOp["type"], annotation: Annotation, previous?: Annotation) {
+    return store.pushAnnotationHistory(this, type, annotation, previous);
   }
   async applyAnnotationHistory(op: AnnotationHistoryOp) {
     return store.applyAnnotationHistory(this, op);

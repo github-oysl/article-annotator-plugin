@@ -13,7 +13,10 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "searchAnnotations": "Search all annotations",
     "clearFileAnnotations": "Clear current file annotations",
     "mobileHighlight": "Highlight current selection (default color)",
-    "mobileAddNote": "Add note to current selection"
+    "mobileAddNote": "Add note to current selection",
+    "locateAtCursor": "Locate annotation at cursor",
+    "editAtCursor": "Edit annotation at cursor",
+    "deleteAtCursor": "Delete annotation at cursor"
   },
   "notifications": {
     "pluginLoaded": "📝 Article Annotator loaded",
@@ -36,7 +39,10 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "customColorSaved": "✅ Custom color saved",
     "customColorCleared": "✅ Custom color cleared",
     "customColorNameSaved": "✅ Custom color name saved",
-    "fileCleared": "🗑️ Cleared ${n} annotations"
+    "fileCleared": "🗑️ Cleared ${n} annotations",
+    "cursorMiss": "No annotation or highlight at the cursor",
+    "annotationDeleted": "Deleted. Undo to restore it",
+    "annotationLocated": "Located this annotation"
   },
   "ui": {
     "highlight": "Highlight",
@@ -111,7 +117,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "shortcutsHint": "💡 Set shortcuts in Obsidian Settings → Hotkeys",
     "notBound": "not bound",
     "readingModeNotice": "Note: Annotations are not visible in Reading mode. Please switch to Editing mode to view highlights.",
-    "aboutText": "Article Annotator 0.2.3 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
+    "aboutText": "Article Annotator 0.2.4 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
   },
   "colorNames": {
     "#FCD34D": "Warm Yellow",
@@ -148,7 +154,10 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "searchAnnotations": "搜索全部批注",
     "clearFileAnnotations": "清空当前文件批注",
     "mobileHighlight": "高亮当前选中（默认颜色）",
-    "mobileAddNote": "给当前选中写批注"
+    "mobileAddNote": "给当前选中写批注",
+    "locateAtCursor": "定位光标处的批注或高亮",
+    "editAtCursor": "编辑光标处的批注或高亮",
+    "deleteAtCursor": "删除光标处的批注或高亮"
   },
   "notifications": {
     "pluginLoaded": "📝 文章批注已加载",
@@ -171,7 +180,10 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "customColorSaved": "✅ 自定义颜色已保存",
     "customColorCleared": "✅ 自定义颜色已清空",
     "customColorNameSaved": "✅ 自定义颜色名称已保存",
-    "fileCleared": "🗑️ 已清空 ${n} 条批注"
+    "fileCleared": "🗑️ 已清空 ${n} 条批注",
+    "cursorMiss": "光标处没有批注或高亮",
+    "annotationDeleted": "已删除，撤销可恢复",
+    "annotationLocated": "已定位到这条批注"
   },
   "ui": {
     "highlight": "高亮",
@@ -246,7 +258,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
     "notBound": "未绑定",
     "readingModeNotice": "说明：阅读模式当前不显示批注高亮，请在编辑模式下查看高亮。",
-    "aboutText": "文章批注 0.2.3 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
+    "aboutText": "文章批注 0.2.4 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
   },
   "colorNames": {
     "#FCD34D": "暖黄",
