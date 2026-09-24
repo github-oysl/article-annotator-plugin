@@ -191,10 +191,23 @@
 
 .aa-filter-button {
   flex: 0 0 auto;
+  width: 28px;
   height: 28px;
-  padding: 0 8px;
+  padding: 0;
   border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
+}
+
+.aa-filter-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.aa-filter-button.is-active {
+  color: var(--interactive-accent);
 }
 
 .aa-filter-button:hover,
@@ -207,12 +220,20 @@
   color: var(--text-normal);
 }
 
-.aa-filter-button.is-active,
-.aa-sidebar-tabs button.is-active,
 .aa-filter-option.is-selected,
 .aa-filter-chip.is-selected {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
+}
+
+/* 激活的统计 Tab 用主题强调色 Pill，突出当前筛选范围。 */
+.aa-sidebar-tabs button.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.aa-sidebar-tabs button.is-active:hover {
+  background: var(--interactive-accent-hover);
 }
 
 .aa-filter-button:focus-visible,
@@ -244,6 +265,33 @@
   line-height: 1.6;
   white-space: nowrap;
   color: var(--text-faint);
+}
+
+/* Tab 行右侧的筛选/排序下拉按钮，固定在行尾。 */
+.aa-sidebar-tabs .aa-tabs-toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+}
+
+.aa-sidebar-tabs .aa-tabs-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.aa-sidebar-tabs .aa-tabs-toggle:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.aa-sidebar-tabs .aa-tabs-toggle.is-active {
+  color: var(--interactive-accent);
 }
 
 .aa-multiselect-bar {

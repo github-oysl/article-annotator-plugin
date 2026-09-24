@@ -205,11 +205,8 @@ function openColorMenu(plugin: ArticleAnnotator, annotation: Annotation, evt: Mo
     menu.showAtMouseEvent(evt);
 }
 
-async function deleteAnnotation(plugin: ArticleAnnotator, annotation: Annotation, anchor: HTMLElement, onChanged: () => void) {
-  const win = anchor.ownerDocument.defaultView;
+async function deleteAnnotation(plugin: ArticleAnnotator, annotation: Annotation, _anchor: HTMLElement, onChanged: () => void) {
   const caret = plugin.captureCaret(plugin.editorInFile(annotation.filePath));
-  if (!win?.confirm(t("ui.deleteConfirm", plugin)))
-    return;
   await plugin.removeAnnotation(annotation.id, true);
   onChanged();
   plugin.restoreCaret(caret);

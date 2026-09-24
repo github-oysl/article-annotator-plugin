@@ -54,8 +54,13 @@ export class AnnotatorSidebarView extends ItemView {
       if (!(target instanceof Node))
         return;
       const popover = container.querySelector(".aa-filter-popover");
-      const button = container.querySelector(".aa-filter-button");
-      if (popover?.contains(target) || button?.contains(target))
+      const buttons = container.querySelectorAll(".aa-filter-button, .aa-tabs-toggle");
+      let insideButton = false;
+      buttons.forEach((button) => {
+        if (button.contains(target))
+          insideButton = true;
+      });
+      if (insideButton || popover?.contains(target))
         return;
       this.filterOpen = false;
       popover?.remove();
@@ -240,19 +245,19 @@ export class AnnotatorSidebarView extends ItemView {
     });
     const filterBtn = row.createEl("button", {
       cls: "aa-filter-button",
-      text: t("ui.filter", this.plugin),
       attr: {
         type: "button",
+        "aria-label": t("ui.filter", this.plugin),
         "aria-expanded": this.filterOpen ? "true" : "false"
       }
     });
+    setIcon(filterBtn, "list-filter");
     if (isFilterActive(this.filter))
       filterBtn.addClass("is-active");
     filterBtn.onclick = (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
-      this.filterOpen = !this.filterOpen;
-      this.render();
+      this.toggleFilter();
     };
     if (this.filterOpen)
       this.renderFilterPopover(row, annotations);
@@ -277,6 +282,26 @@ export class AnnotatorSidebarView extends ItemView {
         this.render();
       };
     }
+    const toggle = tabs.createEl("button", {
+      cls: "aa-tabs-toggle",
+      attr: {
+        type: "button",
+        "aria-label": t("ui.filter", this.plugin),
+        "aria-expanded": this.filterOpen ? "true" : "false"
+      }
+    });
+    setIcon(toggle, "chevron-down");
+    if (isFilterActive(this.filter))
+      toggle.addClass("is-active");
+    toggle.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.toggleFilter();
+    };
+  }
+  toggleFilter() {
+    this.filterOpen = !this.filterOpen;
+    this.render();
   }
   renderMultiSelectBar(container: HTMLElement) {
     const bar = container.createDiv("aa-multiselect-bar");

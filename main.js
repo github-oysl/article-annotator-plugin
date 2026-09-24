@@ -2631,11 +2631,8 @@ function openColorMenu(plugin, annotation, evt) {
   if (evt instanceof MouseEvent)
     menu.showAtMouseEvent(evt);
 }
-async function deleteAnnotation(plugin, annotation, anchor, onChanged) {
-  const win = anchor.ownerDocument.defaultView;
+async function deleteAnnotation(plugin, annotation, _anchor, onChanged) {
   const caret = plugin.captureCaret(plugin.editorInFile(annotation.filePath));
-  if (!win?.confirm(t("ui.deleteConfirm", plugin)))
-    return;
   await plugin.removeAnnotation(annotation.id, true);
   onChanged();
   plugin.restoreCaret(caret);
@@ -2803,8 +2800,13 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
       if (!(target instanceof Node))
         return;
       const popover = this.containerEl.querySelector(".aa-filter-popover");
-      const button = this.containerEl.querySelector(".aa-filter-button");
-      if (popover?.contains(target) || button?.contains(target))
+      const buttons = this.containerEl.querySelectorAll(".aa-filter-button, .aa-tabs-toggle");
+      let insideButton = false;
+      buttons.forEach((button) => {
+        if (button.contains(target))
+          insideButton = true;
+      });
+      if (insideButton || popover?.contains(target))
         return;
       this.filterOpen = false;
       popover?.remove();
@@ -3059,15 +3061,19 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
     });
     const filterBtn = row.createEl("button", {
       cls: "aa-filter-button",
-      text: t("ui.filter", this.plugin),
-      attr: { type: "button", "aria-expanded": this.filterOpen ? "true" : "false" }
+      attr: {
+        type: "button",
+        "aria-label": t("ui.filter", this.plugin),
+        "aria-expanded": this.filterOpen ? "true" : "false"
+      }
     });
+    (0, import_obsidian8.setIcon)(filterBtn, "list-filter");
     if (isFilterActive(this.filter) || this.timeRange !== "all")
       filterBtn.addClass("is-active");
     filterBtn.onclick = (evt) => {
       evt.preventDefault();
-      this.filterOpen = !this.filterOpen;
-      this.render();
+      evt.stopPropagation();
+      this.toggleFilter();
     };
     if (!this.filterOpen)
       return;
@@ -3116,6 +3122,26 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
         this.render();
       };
     }
+    const toggle = tabs.createEl("button", {
+      cls: "aa-tabs-toggle",
+      attr: {
+        type: "button",
+        "aria-label": t("ui.filter", this.plugin),
+        "aria-expanded": this.filterOpen ? "true" : "false"
+      }
+    });
+    (0, import_obsidian8.setIcon)(toggle, "chevron-down");
+    if (isFilterActive(this.filter) || this.timeRange !== "all")
+      toggle.addClass("is-active");
+    toggle.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.toggleFilter();
+    };
+  }
+  toggleFilter() {
+    this.filterOpen = !this.filterOpen;
+    this.render();
   }
   fillList(list) {
     const allInScope = this.sourceAnnotations();
@@ -3306,8 +3332,13 @@ var AnnotatorSidebarView = class extends import_obsidian10.ItemView {
       if (!(target instanceof Node))
         return;
       const popover = container.querySelector(".aa-filter-popover");
-      const button = container.querySelector(".aa-filter-button");
-      if (popover?.contains(target) || button?.contains(target))
+      const buttons = container.querySelectorAll(".aa-filter-button, .aa-tabs-toggle");
+      let insideButton = false;
+      buttons.forEach((button) => {
+        if (button.contains(target))
+          insideButton = true;
+      });
+      if (insideButton || popover?.contains(target))
         return;
       this.filterOpen = false;
       popover?.remove();
@@ -3490,19 +3521,19 @@ var AnnotatorSidebarView = class extends import_obsidian10.ItemView {
     });
     const filterBtn = row.createEl("button", {
       cls: "aa-filter-button",
-      text: t("ui.filter", this.plugin),
       attr: {
         type: "button",
+        "aria-label": t("ui.filter", this.plugin),
         "aria-expanded": this.filterOpen ? "true" : "false"
       }
     });
+    (0, import_obsidian10.setIcon)(filterBtn, "list-filter");
     if (isFilterActive(this.filter))
       filterBtn.addClass("is-active");
     filterBtn.onclick = (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
-      this.filterOpen = !this.filterOpen;
-      this.render();
+      this.toggleFilter();
     };
     if (this.filterOpen)
       this.renderFilterPopover(row, annotations);
@@ -3527,6 +3558,26 @@ var AnnotatorSidebarView = class extends import_obsidian10.ItemView {
         this.render();
       };
     }
+    const toggle = tabs.createEl("button", {
+      cls: "aa-tabs-toggle",
+      attr: {
+        type: "button",
+        "aria-label": t("ui.filter", this.plugin),
+        "aria-expanded": this.filterOpen ? "true" : "false"
+      }
+    });
+    (0, import_obsidian10.setIcon)(toggle, "chevron-down");
+    if (isFilterActive(this.filter))
+      toggle.addClass("is-active");
+    toggle.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.toggleFilter();
+    };
+  }
+  toggleFilter() {
+    this.filterOpen = !this.filterOpen;
+    this.render();
   }
   renderMultiSelectBar(container) {
     const bar = container.createDiv("aa-multiselect-bar");

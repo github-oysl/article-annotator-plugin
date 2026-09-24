@@ -64,8 +64,13 @@ export class AnnotationLibraryView extends ItemView {
       if (!(target instanceof Node))
         return;
       const popover = this.containerEl.querySelector(".aa-filter-popover");
-      const button = this.containerEl.querySelector(".aa-filter-button");
-      if (popover?.contains(target) || button?.contains(target))
+      const buttons = this.containerEl.querySelectorAll(".aa-filter-button, .aa-tabs-toggle");
+      let insideButton = false;
+      buttons.forEach((button) => {
+        if (button.contains(target))
+          insideButton = true;
+      });
+      if (insideButton || popover?.contains(target))
         return;
       this.filterOpen = false;
       popover?.remove();
@@ -322,15 +327,19 @@ export class AnnotationLibraryView extends ItemView {
     });
     const filterBtn = row.createEl("button", {
       cls: "aa-filter-button",
-      text: t("ui.filter", this.plugin),
-      attr: { type: "button", "aria-expanded": this.filterOpen ? "true" : "false" }
+      attr: {
+        type: "button",
+        "aria-label": t("ui.filter", this.plugin),
+        "aria-expanded": this.filterOpen ? "true" : "false"
+      }
     });
+    setIcon(filterBtn, "list-filter");
     if (isFilterActive(this.filter) || this.timeRange !== "all")
       filterBtn.addClass("is-active");
     filterBtn.onclick = (evt) => {
       evt.preventDefault();
-      this.filterOpen = !this.filterOpen;
-      this.render();
+      evt.stopPropagation();
+      this.toggleFilter();
     };
     if (!this.filterOpen)
       return;
@@ -379,6 +388,26 @@ export class AnnotationLibraryView extends ItemView {
         this.render();
       };
     }
+    const toggle = tabs.createEl("button", {
+      cls: "aa-tabs-toggle",
+      attr: {
+        type: "button",
+        "aria-label": t("ui.filter", this.plugin),
+        "aria-expanded": this.filterOpen ? "true" : "false"
+      }
+    });
+    setIcon(toggle, "chevron-down");
+    if (isFilterActive(this.filter) || this.timeRange !== "all")
+      toggle.addClass("is-active");
+    toggle.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.toggleFilter();
+    };
+  }
+  toggleFilter() {
+    this.filterOpen = !this.filterOpen;
+    this.render();
   }
   fillList(list: HTMLElement) {
     const allInScope = this.sourceAnnotations();
