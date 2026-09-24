@@ -600,6 +600,9 @@ var LANGUAGES = {
       "noNoteToCopy": "This highlight has no note text.",
       "libraryTitle": "Annotation library",
       "allFiles": "All files",
+      "navFiles": "Files",
+      "collapseFolder": "Collapse",
+      "expandFolder": "Expand",
       "filterTime": "Time",
       "timeAll": "Any time",
       "timeToday": "Today",
@@ -623,7 +626,7 @@ var LANGUAGES = {
       "shortcutsHint": "\u{1F4A1} Set shortcuts in Obsidian Settings \u2192 Hotkeys",
       "notBound": "not bound",
       "readingModeNotice": "Reading mode shows highlights that still match the text. The note file itself is not modified.",
-      "aboutText": "Article Annotator 0.2.5 \u2014 Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n\u{1F4A1} Custom highlight color uses hex code (e.g., #FCD34D)."
+      "aboutText": "Article Annotator 0.2.6 \u2014 Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n\u{1F4A1} Custom highlight color uses hex code (e.g., #FCD34D)."
     },
     "colorNames": {
       "#FCD34D": "Warm Yellow",
@@ -797,6 +800,9 @@ var LANGUAGES = {
       "noNoteToCopy": "\u8FD9\u6761\u9AD8\u4EAE\u6CA1\u6709\u6279\u6CE8\u6587\u5B57",
       "libraryTitle": "\u6279\u6CE8\u4E2D\u5FC3",
       "allFiles": "\u5168\u90E8\u6587\u4EF6",
+      "navFiles": "\u6587\u4EF6",
+      "collapseFolder": "\u6298\u53E0",
+      "expandFolder": "\u5C55\u5F00",
       "filterTime": "\u65F6\u95F4",
       "timeAll": "\u5168\u90E8\u65F6\u95F4",
       "timeToday": "\u4ECA\u5929",
@@ -820,7 +826,7 @@ var LANGUAGES = {
       "shortcutsHint": "\u{1F4A1} \u53EF\u5728 Obsidian \u8BBE\u7F6E \u2192 \u5FEB\u6377\u952E \u4E2D\u4E3A\u4E0A\u8FF0\u547D\u4EE4\u7ED1\u5B9A\u5FEB\u6377\u952E",
       "notBound": "\u672A\u7ED1\u5B9A",
       "readingModeNotice": "\u9605\u8BFB\u6A21\u5F0F\u4F1A\u663E\u793A\u5BF9\u5F97\u4E0A\u7684\u9AD8\u4EAE\u989C\u8272\uFF0C\u4E0D\u4F1A\u4FEE\u6539\u7B14\u8BB0\u539F\u6587\u3002",
-      "aboutText": "\u6587\u7AE0\u6279\u6CE8 0.2.5 \u2014 \u53C2\u8003 Microsoft Word \u6279\u6CE8\u8BBE\u8BA1\u3002\u6240\u6709\u6279\u6CE8\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E0D\u4FEE\u6539\u539F\u6587\u3002\u5F53\u524D\u5DF2\u652F\u6301\u7535\u8111\u3001iPad\u3001\u624B\u673A\u4E09\u7AEF\u540C\u6B65\uFF0C\u9700\u786E\u4FDD\u77E5\u8BC6\u5E93\u540C\u6B65\u6587\u4EF6 <strong><code>article-annotator/annotations.json</code></strong>\u3002\n\n\u{1F4A1} \u81EA\u5B9A\u4E49\u9AD8\u4EAE\u989C\u8272\u4F7F\u7528\u5341\u516D\u8FDB\u5236\u4EE3\u7801\uFF08\u5982 #FCD34D\uFF09\u3002"
+      "aboutText": "\u6587\u7AE0\u6279\u6CE8 0.2.6 \u2014 \u53C2\u8003 Microsoft Word \u6279\u6CE8\u8BBE\u8BA1\u3002\u6240\u6709\u6279\u6CE8\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E0D\u4FEE\u6539\u539F\u6587\u3002\u5F53\u524D\u5DF2\u652F\u6301\u7535\u8111\u3001iPad\u3001\u624B\u673A\u4E09\u7AEF\u540C\u6B65\uFF0C\u9700\u786E\u4FDD\u77E5\u8BC6\u5E93\u540C\u6B65\u6587\u4EF6 <strong><code>article-annotator/annotations.json</code></strong>\u3002\n\n\u{1F4A1} \u81EA\u5B9A\u4E49\u9AD8\u4EAE\u989C\u8272\u4F7F\u7528\u5341\u516D\u8FDB\u5236\u4EE3\u7801\uFF08\u5982 #FCD34D\uFF09\u3002"
     },
     "colorNames": {
       "#FCD34D": "\u6696\u9EC4",
@@ -2627,10 +2633,12 @@ function openColorMenu(plugin, annotation, evt) {
 }
 async function deleteAnnotation(plugin, annotation, anchor, onChanged) {
   const win = anchor.ownerDocument.defaultView;
+  const caret = plugin.captureCaret(plugin.editorInFile(annotation.filePath));
   if (!win?.confirm(t("ui.deleteConfirm", plugin)))
     return;
   await plugin.removeAnnotation(annotation.id, true);
   onChanged();
+  plugin.restoreCaret(caret);
 }
 function showAddTagDialog(plugin, annotation, onChanged) {
   const modal = new import_obsidian7.Modal(plugin.app);
@@ -2773,6 +2781,7 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
     this.pathKind = "all";
     this.pathValue = "";
     this.timeRange = "all";
+    this.collapsedFolders = /* @__PURE__ */ new Set();
     this.plugin = plugin;
     this.icon = "library";
   }
@@ -2853,14 +2862,18 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
     const active = doc.activeElement;
     const searchWasFocused = active instanceof HTMLInputElement && active.classList.contains("aa-sidebar-search");
     const cursor = searchWasFocused ? active.selectionStart : null;
+    const previousNav = this.containerEl.querySelector(".aa-library-nav");
+    const navScroll = previousNav instanceof HTMLElement ? previousNav.scrollTop : 0;
     const container = this.containerEl;
     container.empty();
     container.addClass("aa-library");
     if (import_obsidian8.Platform.isMobile)
       container.addClass("is-touch");
-    const nav = container.createDiv("aa-library-nav");
+    this.renderHeader(container);
+    const body = container.createDiv("aa-library-body");
+    const nav = body.createDiv("aa-library-nav");
     this.renderNav(nav);
-    const main = container.createDiv("aa-library-main");
+    const main = body.createDiv("aa-library-main");
     const annotations = this.sourceAnnotations();
     this.renderSearch(main, annotations);
     this.renderTabs(main, annotations);
@@ -2874,6 +2887,18 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
           input.setSelectionRange(cursor, cursor);
       }
     }
+    nav.scrollTop = navScroll;
+  }
+  renderHeader(container) {
+    const header = container.createDiv("aa-library-header");
+    header.createEl("h3", { text: t("ui.libraryTitle", this.plugin) });
+    const closeBtn = header.createEl("button", {
+      attr: { type: "button", "aria-label": t("ui.close", this.plugin) }
+    });
+    (0, import_obsidian8.setIcon)(closeBtn, "x");
+    closeBtn.onclick = () => {
+      this.leaf.detach();
+    };
   }
   renderList() {
     const list = this.containerEl.querySelector(".aa-library-main .aa-sidebar-list");
@@ -2887,6 +2912,7 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
     list.scrollTop = scrollTop;
   }
   renderNav(nav) {
+    this.renderSection(nav, t("ui.navFiles", this.plugin));
     const allBtn = nav.createEl("button", {
       cls: "aa-library-path",
       text: t("ui.allFiles", this.plugin),
@@ -2900,16 +2926,93 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
       this.render();
     };
     this.renderFolder(nav, buildTree(this.plugin.data), 0);
+    const tags = [...new Set(this.plugin.data.flatMap((annotation) => annotation.tags ?? []))].sort((a, b) => a.localeCompare(b));
+    if (tags.length > 0) {
+      this.renderSection(nav, t("ui.filterTag", this.plugin));
+      for (const tag of tags)
+        this.renderToggle(nav, tag, this.filter.tags.includes(tag), () => this.toggleValue("tags", tag));
+    }
+    const colors = [...new Set(this.plugin.data.map((annotation) => annotation.color))];
+    if (colors.length > 0) {
+      this.renderSection(nav, t("ui.filterColor", this.plugin));
+      const row = nav.createDiv("aa-library-colors");
+      for (const color of colors) {
+        const swatch = row.createEl("button", {
+          cls: "aa-filter-swatch",
+          attr: {
+            type: "button",
+            "aria-label": getColorName(color, this.plugin) || color,
+            "aria-pressed": this.filter.colors.includes(color) ? "true" : "false"
+          }
+        });
+        swatch.style.setProperty("--aa-accent", color);
+        if (this.filter.colors.includes(color))
+          swatch.addClass("is-selected");
+        swatch.onclick = () => this.toggleValue("colors", color);
+      }
+    }
+    this.renderSection(nav, t("ui.filterTime", this.plugin));
+    const ranges = [
+      { id: "all", key: "ui.timeAll" },
+      { id: "today", key: "ui.timeToday" },
+      { id: "week", key: "ui.timeWeek" }
+    ];
+    for (const range of ranges)
+      this.renderToggle(nav, t(range.key, this.plugin), this.timeRange === range.id, () => {
+        this.timeRange = range.id;
+        this.render();
+      });
+  }
+  renderSection(nav, title) {
+    nav.createDiv({ cls: "aa-library-section-title", text: title });
+  }
+  renderToggle(nav, label, selected, onClick) {
+    const button = nav.createEl("button", {
+      cls: "aa-library-path",
+      text: label,
+      attr: { type: "button", "aria-pressed": selected ? "true" : "false" }
+    });
+    if (selected)
+      button.addClass("is-selected");
+    button.onclick = onClick;
+  }
+  toggleValue(key, value) {
+    const selected = new Set(this.filter[key]);
+    if (selected.has(value))
+      selected.delete(value);
+    else
+      selected.add(value);
+    this.filter = { ...this.filter, [key]: [...selected] };
+    this.render();
   }
   renderFolder(parent, node, depth) {
     const folders = [...node.folders].sort((a, b) => a.name.localeCompare(b.name));
     for (const folder of folders) {
-      const button = parent.createEl("button", {
+      const collapsed = this.collapsedFolders.has(folder.path);
+      const row = parent.createDiv("aa-library-folder");
+      row.style.setProperty("--aa-indent", `${8 + depth * 12}px`);
+      const twist = row.createEl("button", {
+        cls: "aa-library-twist",
+        attr: {
+          type: "button",
+          "aria-expanded": collapsed ? "false" : "true",
+          "aria-label": t(collapsed ? "ui.expandFolder" : "ui.collapseFolder", this.plugin)
+        }
+      });
+      (0, import_obsidian8.setIcon)(twist, collapsed ? "chevron-right" : "chevron-down");
+      twist.onclick = (evt) => {
+        evt.stopPropagation();
+        if (collapsed)
+          this.collapsedFolders.delete(folder.path);
+        else
+          this.collapsedFolders.add(folder.path);
+        this.render();
+      };
+      const button = row.createEl("button", {
         cls: "aa-library-path",
         text: folder.name,
         attr: { type: "button", "aria-pressed": this.pathKind === "folder" && this.pathValue === folder.path ? "true" : "false" }
       });
-      button.style.setProperty("--aa-indent", `${12 + depth * 12}px`);
       if (this.pathKind === "folder" && this.pathValue === folder.path)
         button.addClass("is-selected");
       button.onclick = () => {
@@ -2917,16 +3020,18 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
         this.pathValue = folder.path;
         this.render();
       };
-      this.renderFolder(parent, folder, depth + 1);
+      if (!collapsed)
+        this.renderFolder(parent, folder, depth + 1);
     }
     const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name));
     for (const file of files) {
       const button = parent.createEl("button", {
         cls: "aa-library-path",
-        text: `${file.name} ${file.count}`,
         attr: { type: "button", "aria-pressed": this.pathKind === "file" && this.pathValue === file.path ? "true" : "false" }
       });
-      button.style.setProperty("--aa-indent", `${12 + depth * 12}px`);
+      button.style.setProperty("--aa-indent", `${28 + depth * 12}px`);
+      button.createSpan({ text: file.name });
+      button.createSpan({ cls: "aa-library-count", text: String(file.count) });
       if (this.pathKind === "file" && this.pathValue === file.path)
         button.addClass("is-selected");
       button.onclick = () => {
@@ -4311,10 +4416,42 @@ var ArticleAnnotator = class extends import_obsidian12.Plugin {
     refreshHighlights(this);
   }
   editorForFile(file) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
-    if (view?.file?.path === file.path)
-      return view.editor;
-    return null;
+    return this.editorInFile(file.path);
+  }
+  editorInFile(filePath) {
+    const active = this.app.workspace.activeEditor;
+    if (active?.file?.path === filePath && active.editor)
+      return active.editor;
+    let found = null;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const view = leaf.view;
+      if (view instanceof import_obsidian12.MarkdownView && view.file?.path === filePath)
+        found = view.editor;
+    });
+    return found;
+  }
+  /** 记下删除前的光标。确认框和侧栏重绘会把焦点带走。 */
+  captureCaret(editor) {
+    if (!editor)
+      return null;
+    return {
+      editor,
+      anchor: editor.getCursor("anchor"),
+      head: editor.getCursor("head")
+    };
+  }
+  restoreCaret(caret) {
+    if (!caret)
+      return;
+    const apply = () => {
+      caret.editor.setSelection(caret.anchor, caret.head);
+      caret.editor.focus();
+    };
+    const win = this.app.workspace.containerEl.ownerDocument.defaultView ?? window;
+    win.requestAnimationFrame(() => {
+      apply();
+      win.setTimeout(apply, 30);
+    });
   }
   async followRenamedPath(file, oldPath) {
     const isFolder = file instanceof import_obsidian12.TFolder;
@@ -4380,16 +4517,39 @@ var ArticleAnnotator = class extends import_obsidian12.Plugin {
     });
     modal.open();
   }
+  /** 批注中心和侧栏自己不拿来打开原文，避免管理页被笔记替换。 */
+  leafForAnnotation(filePath) {
+    const workspace = this.app.workspace;
+    const blocked = /* @__PURE__ */ new Set([VIEW_TYPE, VIEW_TYPE_LIBRARY]);
+    let opened = null;
+    let fallback = null;
+    workspace.iterateAllLeaves((leaf) => {
+      if (blocked.has(leaf.view.getViewType()))
+        return;
+      const view = leaf.view;
+      if (!opened && view instanceof import_obsidian12.FileView && view.file?.path === filePath)
+        opened = leaf;
+      else if (!fallback)
+        fallback = leaf;
+    });
+    if (opened)
+      return opened;
+    const active = workspace.getLeaf(false);
+    if (active && !blocked.has(active.view.getViewType()))
+      return active;
+    if (fallback)
+      return fallback;
+    return workspace.getLeaf("split", "vertical");
+  }
   async navigateToAnnotation(annotation) {
     const file = this.app.vault.getAbstractFileByPath(annotation.filePath);
     if (!(file instanceof import_obsidian12.TFile)) {
       new import_obsidian12.Notice(t("notifications.fileNotFound", this));
       return;
     }
-    const leaf = this.app.workspace.getLeaf(false);
-    if (!leaf)
-      return;
+    const leaf = this.leafForAnnotation(annotation.filePath);
     await leaf.openFile(file);
+    this.app.workspace.revealLeaf(leaf);
     if (annotation.fileType === "pdf") {
       setTimeout(() => this.jumpToPdfAnnotation(annotation), 220);
       return;
@@ -4575,7 +4735,9 @@ var ArticleAnnotator = class extends import_obsidian12.Plugin {
       await this.revealUnanchored(found);
       return;
     }
+    const caret = this.captureCaret(editor);
     await this.removeAnnotation(found.id, true);
+    this.restoreCaret(caret);
     new import_obsidian12.Notice(t("notifications.annotationDeleted", this));
   }
   async reassignAnnotation(annotation) {
