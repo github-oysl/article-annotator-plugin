@@ -480,6 +480,22 @@
   border-bottom-color: color-mix(in srgb, var(--interactive-accent) 50%, transparent 50%);
 }
 
+.aa-anchor-status {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-warning, var(--text-muted));
+}
+
+.aa-reading-highlight {
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.markdown-preview-view .aa-reading-highlight:hover {
+  filter: brightness(0.95);
+}
+
 .aa-card-edit-hint,
 .aa-note-modal-hint,
 .aa-shortcut-hint {

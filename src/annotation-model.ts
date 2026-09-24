@@ -3,6 +3,7 @@ import { Editor } from "obsidian";
 import { resolveAnnotationTextRange, type TextSpan } from "./annotation-range";
 import { t } from "./i18n";
 import type {
+  AnchorStatus,
   Annotation,
   AnnotationDraft,
   AnnotationPosition,
@@ -13,6 +14,12 @@ import type {
   PdfRect,
   TextRange,
 } from "./types";
+
+const ANCHOR_STATUSES: readonly AnchorStatus[] = ["ok", "ambiguous", "missing", "file-missing"];
+
+export function readAnchorStatus(value: unknown): AnchorStatus | undefined {
+  return typeof value === "string" && ANCHOR_STATUSES.includes(value as AnchorStatus) ? value as AnchorStatus : undefined;
+}
 
 export function getFileType(file: { extension?: string } | null | undefined): "pdf" | "markdown" {
   return file?.extension === "pdf" ? "pdf" : "markdown";
@@ -54,6 +61,9 @@ export function normalizeAnnotation(annotation: AnnotationDraft | null | undefin
     color: annotation.color || DEFAULT_SETTINGS.defaultColor,
     highlightedText: annotation.highlightedText || "",
     noteContent: annotation.noteContent || "",
+    prefix: typeof annotation.prefix === "string" ? annotation.prefix : "",
+    suffix: typeof annotation.suffix === "string" ? annotation.suffix : "",
+    anchor: readAnchorStatus(annotation.anchor),
     groupId: annotation.groupId || null,
     created: typeof annotation.created === "number" ? annotation.created : Date.now(),
     updated: typeof annotation.updated === "number" ? annotation.updated : Date.now(),

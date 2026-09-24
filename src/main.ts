@@ -11,10 +11,13 @@ import {
   Notice,
   Platform,
   Plugin,
+  TAbstractFile,
   TFile,
+  TFolder,
   type WorkspaceLeaf,
 } from "obsidian";
 import { EditorView } from "@codemirror/view";
+import { anchorFieldsForRange, linesFromText, reconcileFileAnnotations } from "./anchor";
 import { createAnnotationHistoryExtension, type AnnotationHistoryOp } from "./annotation-history";
 import {
   ANNOTATION_STORE_DIR,
@@ -36,6 +39,7 @@ import { highlightField, refreshHighlights } from "./editor-highlights";
 import { getColorName, t } from "./i18n";
 import { NoteModal } from "./note-modal";
 import * as pdf from "./pdf";
+import { decorateReadingHighlights } from "./reading-highlight";
 import { SearchModal } from "./search-modal";
 import { AnnotatorSettingTab } from "./settings";
 import { VIEW_TYPE, AnnotatorSidebarView } from "./sidebar";
@@ -51,6 +55,7 @@ export default class ArticleAnnotator extends Plugin {
   mobileFabPanelEl: HTMLElement | null = null;
   pdfContextMenuHandler: ((event: MouseEvent) => void) | null = null;
   pdfRenderTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  reanchorTimers = new Map<string, ReturnType<typeof setTimeout>>();
   annotationStorePath = `${ANNOTATION_STORE_DIR}/${ANNOTATION_STORE_FILE}`;
   isReloadingAnnotationStore = false;
   settings: AnnotatorSettings = { ...DEFAULT_SETTINGS };
@@ -115,6 +120,30 @@ export default class ArticleAnnotator extends Plugin {
         }
       })
     );
+    this.registerEvent(
+      this.app.workspace.on("editor-change", (editor, info) => {
+        const file = info.file;
+        if (!(file instanceof TFile) || file.extension === "pdf")
+          return;
+        this.scheduleReanchor(file, editor);
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        void this.followRenamedPath(file, oldPath);
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        void this.markDeletedPath(file);
+      })
+    );
+    this.registerMarkdownPostProcessor((el, ctx) => {
+      const annotations = this.getAnnotationsForFile(ctx.sourcePath);
+      decorateReadingHighlights(el, annotations, (annotation) => {
+        void this.navigateToAnnotation(annotation);
+      });
+    });
     this.addCommand({
       id: "toggle-sidebar",
       name: t("commands.toggleSidebar", this),
@@ -160,7 +189,7 @@ export default class ArticleAnnotator extends Plugin {
       id: "edit-annotation-at-cursor",
       name: t("commands.editAtCursor", this),
       editorCallback: (editor, view) => {
-        this.editAnnotationAtCursor(editor, view);
+        void this.editAnnotationAtCursor(editor, view);
       }
     });
     this.addCommand({
@@ -172,15 +201,10 @@ export default class ArticleAnnotator extends Plugin {
     });
     this.addSettingTab(new AnnotatorSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => {
-      this.initSidebar();
-      this.bindPdfContextMenus();
-      refreshHighlights(this);
-      this.schedulePdfRender();
-      if (Platform.isMobile) {
-        this.setupMobileFab();
-      }
+      void this.finishStartup();
     });
     this.register(() => this.clearPdfRenderTimers());
+    this.register(() => this.clearReanchorTimers());
     new Notice(t("notifications.pluginLoaded", this));
   }
   onunload() {
@@ -188,6 +212,18 @@ export default class ArticleAnnotator extends Plugin {
     this.clearPdfHighlightLayers();
     this.clearPdfRenderTimers();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
+  }
+  async finishStartup() {
+    await this.initSidebar();
+    this.bindPdfContextMenus();
+    const active = this.app.workspace.getActiveFile();
+    if (active && getFileType(active) !== "pdf")
+      await this.reconcileMarkdownFile(active);
+    else
+      refreshHighlights(this);
+    this.schedulePdfRender();
+    if (Platform.isMobile)
+      this.setupMobileFab();
   }
   async handleActiveFileChange(file: TFile) {
     await this.reloadAnnotationStoreFromVault();
@@ -197,9 +233,94 @@ export default class ArticleAnnotator extends Plugin {
     if (getFileType(file) === "pdf") {
       this.schedulePdfRender(file.path, 120);
     } else {
-      setTimeout(() => refreshHighlights(this), 50);
+      await this.reconcileMarkdownFile(file);
       this.clearPdfHighlightLayers();
     }
+  }
+  clearReanchorTimers() {
+    for (const timer of this.reanchorTimers.values())
+      clearTimeout(timer);
+    this.reanchorTimers.clear();
+  }
+  /** 正文改动后稍等再对齐，避免每个字符都重写批注文件。 */
+  scheduleReanchor(file: TFile, editor: Editor) {
+    const pending = this.reanchorTimers.get(file.path);
+    if (pending)
+      clearTimeout(pending);
+    const timer = setTimeout(() => {
+      this.reanchorTimers.delete(file.path);
+      void this.reconcileMarkdownFile(file, editor);
+    }, 500);
+    this.reanchorTimers.set(file.path, timer);
+  }
+  async reconcileMarkdownFile(file: TFile, editor?: Editor) {
+    const liveEditor = editor ?? this.editorForFile(file);
+    let lines: string[];
+    if (liveEditor) {
+      lines = [];
+      for (let index = 0; index < liveEditor.lineCount(); index++)
+        lines.push(liveEditor.getLine(index));
+    } else {
+      lines = linesFromText(await this.app.vault.read(file));
+    }
+    const reconciled = reconcileFileAnnotations(this.data, file.path, lines);
+    if (!reconciled.changed) {
+      refreshHighlights(this);
+      return;
+    }
+    this.data = reconciled.annotations;
+    await this.saveAnnotations();
+    if (this.sidebarView)
+      this.sidebarView.update(file);
+    refreshHighlights(this);
+  }
+  editorForFile(file: TFile): Editor | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (view?.file?.path === file.path)
+      return view.editor;
+    return null;
+  }
+  async followRenamedPath(file: TAbstractFile, oldPath: string) {
+    const isFolder = file instanceof TFolder;
+    let changed = false;
+    const remap = (path: string) => {
+      if (path === oldPath)
+        return file.path;
+      if (isFolder && path.startsWith(`${oldPath}/`))
+        return `${file.path}${path.slice(oldPath.length)}`;
+      return path;
+    };
+    this.data = this.data.map((annotation) => {
+      const filePath = remap(annotation.filePath);
+      if (filePath === annotation.filePath)
+        return annotation;
+      changed = true;
+      return { ...annotation, filePath };
+    });
+    this.groups = this.groups.map((group) => {
+      const filePath = remap(group.filePath);
+      if (filePath === group.filePath)
+        return group;
+      changed = true;
+      return { ...group, filePath };
+    });
+    if (changed)
+      await this.saveAnnotations();
+  }
+  async markDeletedPath(file: TAbstractFile) {
+    const isFolder = file instanceof TFolder;
+    const matches = (path: string) => path === file.path || (isFolder && path.startsWith(`${file.path}/`));
+    let changed = false;
+    this.data = this.data.map((annotation) => {
+      if (!matches(annotation.filePath) || annotation.anchor === "file-missing")
+        return annotation;
+      changed = true;
+      return { ...annotation, anchor: "file-missing" };
+    });
+    if (!changed)
+      return;
+    await this.saveAnnotations();
+    this.sidebarView?.update(this.activeFile);
   }
 
   /** 快捷键和右键菜单共用：先在弹窗里写草稿，确认后才写入批注文件。 */
@@ -377,10 +498,23 @@ export default class ArticleAnnotator extends Plugin {
     editor.scrollIntoView({ from, to }, true);
     this.sidebarView?.scrollToCard(annotation.id);
   }
+  /** 还没对上、或已经对不上的记录，不拿旧行号去选正文。 */
+  anchoredOk(annotation: Annotation): boolean {
+    return annotation.anchor === "ok" || (annotation.fileType === "pdf" && annotation.anchor == null);
+  }
+  async revealUnanchored(annotation: Annotation) {
+    new Notice(t("notifications.anchorLost", this));
+    await this.activateSidebar();
+    this.sidebarView?.scrollToCard(annotation.id);
+  }
   async locateAnnotationAtCursor(editor: Editor, view: { file: TFile | null }) {
     const found = this.annotationAtCursor(editor, view);
     if (!found) {
       new Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    if (!this.anchoredOk(found)) {
+      await this.revealUnanchored(found);
       return;
     }
     this.selectAnnotationRange(editor, found);
@@ -388,10 +522,14 @@ export default class ArticleAnnotator extends Plugin {
     this.selectAnnotationRange(editor, found);
     new Notice(t("notifications.annotationLocated", this));
   }
-  editAnnotationAtCursor(editor: Editor, view: { file: TFile | null }) {
+  async editAnnotationAtCursor(editor: Editor, view: { file: TFile | null }) {
     const found = this.annotationAtCursor(editor, view);
     if (!found) {
       new Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    if (!this.anchoredOk(found)) {
+      await this.revealUnanchored(found);
       return;
     }
     this.selectAnnotationRange(editor, found);
@@ -403,8 +541,40 @@ export default class ArticleAnnotator extends Plugin {
       new Notice(t("notifications.cursorMiss", this));
       return;
     }
+    if (!this.anchoredOk(found)) {
+      await this.revealUnanchored(found);
+      return;
+    }
     await this.removeAnnotation(found.id, true);
     new Notice(t("notifications.annotationDeleted", this));
+  }
+  async reassignAnnotation(annotation: Annotation) {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file || !view.editor) {
+      new Notice(t("notifications.openEditableNote", this));
+      return;
+    }
+    const range = captureMarkdownRange(view.editor);
+    if (!range) {
+      new Notice(t("notifications.placeCursor", this));
+      return;
+    }
+    const lines: string[] = [];
+    for (let index = 0; index < view.editor.lineCount(); index++)
+      lines.push(view.editor.getLine(index));
+    const position = {
+      startLine: range.from.line,
+      startCh: range.from.ch,
+      endLine: range.to.line,
+      endCh: range.to.ch,
+    };
+    await this.updateAnnotation(annotation.id, {
+      ...anchorFieldsForRange(lines, position, range.text),
+      filePath: view.file.path,
+      fileType: "markdown",
+      position,
+    });
+    new Notice(t("notifications.reassigned", this));
   }
   /** 修改已有批注或高亮的颜色和文字，不新建一条。 */
   openNoteEditor(existing: Annotation) {
@@ -440,7 +610,9 @@ export default class ArticleAnnotator extends Plugin {
     menu.addItem((item) => {
       item.setIcon("pencil");
       item.setTitle(t("commands.editAtCursor", this));
-      item.onClick(() => this.editAnnotationAtCursor(editor, view));
+      item.onClick(() => {
+        void this.editAnnotationAtCursor(editor, view);
+      });
     });
     menu.addItem((item) => {
       item.setIcon("trash");
@@ -487,7 +659,7 @@ export default class ArticleAnnotator extends Plugin {
     }
     const existing = this.getAnnotationsForFile(view.file.path);
     const overlap = existing.some(
-      (a) => isMarkdownPosition(a.position) && positionsOverlap(a.position, {
+      (a) => (a.anchor == null || a.anchor === "ok") && isMarkdownPosition(a.position) && positionsOverlap(a.position, {
         startLine: range.from.line,
         startCh: range.from.ch,
         endLine: range.to.line,
@@ -498,19 +670,23 @@ export default class ArticleAnnotator extends Plugin {
       new Notice(t("notifications.annotationExists", this));
       return;
     }
+    const position = {
+      startLine: range.from.line,
+      startCh: range.from.ch,
+      endLine: range.to.line,
+      endCh: range.to.ch
+    };
+    const lines: string[] = [];
+    for (let index = 0; index < editor.lineCount(); index++)
+      lines.push(editor.getLine(index));
     const annotation = {
       id: generateId(),
       filePath: view.file.path,
       type: "highlight",
       color,
-      highlightedText: range.text,
       noteContent: "",
-      position: {
-        startLine: range.from.line,
-        startCh: range.from.ch,
-        endLine: range.to.line,
-        endCh: range.to.ch
-      },
+      ...anchorFieldsForRange(lines, position, range.text),
+      position,
       created: Date.now(),
       updated: Date.now(),
       order: Date.now()
@@ -530,7 +706,7 @@ export default class ArticleAnnotator extends Plugin {
       return;
     }
     const overlap = this.getAnnotationsForFile(view.file.path).some(
-      (a) => isMarkdownPosition(a.position) && positionsOverlap(a.position, {
+      (a) => (a.anchor == null || a.anchor === "ok") && isMarkdownPosition(a.position) && positionsOverlap(a.position, {
         startLine: range.from.line,
         startCh: range.from.ch,
         endLine: range.to.line,
@@ -541,19 +717,23 @@ export default class ArticleAnnotator extends Plugin {
       new Notice(t("notifications.annotationExists", this));
       return;
     }
+    const position = {
+      startLine: range.from.line,
+      startCh: range.from.ch,
+      endLine: range.to.line,
+      endCh: range.to.ch
+    };
+    const lines: string[] = [];
+    for (let index = 0; index < editor.lineCount(); index++)
+      lines.push(editor.getLine(index));
     const annotation = {
       id: generateId(),
       filePath: view.file.path,
       type: "note",
       color: this.settings.defaultColor,
-      highlightedText: range.text,
       noteContent: "",
-      position: {
-        startLine: range.from.line,
-        startCh: range.from.ch,
-        endLine: range.to.line,
-        endCh: range.to.ch
-      },
+      ...anchorFieldsForRange(lines, position, range.text),
+      position,
       created: Date.now(),
       updated: Date.now(),
       order: Date.now()

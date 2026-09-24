@@ -38,6 +38,9 @@ export interface PdfPosition {
 
 export type AnnotationPosition = MarkdownPosition | PdfPosition;
 
+/** 原句还能不能在笔记里对上。没有这个字段表示还没检查过。 */
+export type AnchorStatus = "ok" | "ambiguous" | "missing" | "file-missing";
+
 export interface Annotation {
   id: string;
   filePath: string;
@@ -46,6 +49,11 @@ export interface Annotation {
   color: string;
   highlightedText: string;
   noteContent: string;
+  /** 原句前面的一小段，用来在正文改动后重新找到它。 */
+  prefix: string;
+  /** 原句后面的一小段。 */
+  suffix: string;
+  anchor?: AnchorStatus;
   groupId: string | null;
   created: number;
   updated: number;
@@ -85,6 +93,9 @@ export interface AnnotationDraft {
   color?: string;
   highlightedText?: string;
   noteContent?: string;
+  prefix?: string;
+  suffix?: string;
+  anchor?: AnchorStatus;
   groupId?: string | null;
   created?: number;
   updated?: number;

@@ -62,7 +62,7 @@ export function refreshHighlights(plugin: HighlightHost): void {
   const cm = getCodeMirror(view.editor);
   if (!cm)
     return;
-  const annotations = plugin.getAnnotationsForFile(view.file.path).filter((ann): ann is Annotation & { position: MarkdownPosition } => ann.fileType !== "pdf" && isMarkdownPosition(ann.position));
+  const annotations = plugin.getAnnotationsForFile(view.file.path).filter((ann): ann is Annotation & { position: MarkdownPosition } => ann.fileType !== "pdf" && ann.anchor === "ok" && isMarkdownPosition(ann.position));
   if (annotations.length === 0) {
     cm.dispatch({ effects: setHighlightsEffect.of([]) });
     return;

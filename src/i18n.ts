@@ -42,7 +42,9 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "fileCleared": "🗑️ Cleared ${n} annotations",
     "cursorMiss": "No annotation or highlight at the cursor",
     "annotationDeleted": "Deleted. Undo to restore it",
-    "annotationLocated": "Located this annotation"
+    "annotationLocated": "Located this annotation",
+    "anchorLost": "This annotation no longer matches the text. It is marked in the sidebar",
+    "reassigned": "Rebound to the current selection"
   },
   "ui": {
     "highlight": "Highlight",
@@ -100,6 +102,11 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "renameGroupPrompt": "Rename group \"${name}\":",
     "ungroupConfirm": "Remove ${n} annotations from \"${name}\"?",
     "ungrouped": "Ungrouped",
+    "reassign": "Reassign",
+    "anchorAmbiguous": "This sentence appears more than once",
+    "anchorMissing": "The original sentence was not found",
+    "anchorFileMissing": "The note file is gone",
+    "orphanHeading": "Annotations whose files are gone",
     "ungroup": "Ungroup",
     "collapseGroup": "Collapse group",
     "expandGroup": "Expand group",
@@ -116,7 +123,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "languageDesc": "Interface language for the plugin",
     "shortcutsHint": "💡 Set shortcuts in Obsidian Settings → Hotkeys",
     "notBound": "not bound",
-    "readingModeNotice": "Note: Annotations are not visible in Reading mode. Please switch to Editing mode to view highlights.",
+    "readingModeNotice": "Reading mode shows highlights that still match the text. The note file itself is not modified.",
     "aboutText": "Article Annotator 0.2.4 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
   },
   "colorNames": {
@@ -183,7 +190,9 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "fileCleared": "🗑️ 已清空 ${n} 条批注",
     "cursorMiss": "光标处没有批注或高亮",
     "annotationDeleted": "已删除，撤销可恢复",
-    "annotationLocated": "已定位到这条批注"
+    "annotationLocated": "已定位到这条批注",
+    "anchorLost": "这条批注对不上原文，已在侧边栏标出",
+    "reassigned": "已重新指定到当前选区"
   },
   "ui": {
     "highlight": "高亮",
@@ -241,6 +250,11 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "renameGroupPrompt": "重命名分组「${name}」：",
     "ungroupConfirm": "确定将「${name}」中的 ${n} 个批注取消分组？",
     "ungrouped": "未分组批注",
+    "reassign": "重新指定",
+    "anchorAmbiguous": "这篇里有多处相同原文",
+    "anchorMissing": "找不到原来的句子",
+    "anchorFileMissing": "笔记文件已经不在",
+    "orphanHeading": "文件已不在的批注",
     "ungroup": "取消分组",
     "collapseGroup": "折叠分组",
     "expandGroup": "展开分组",
@@ -257,7 +271,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "languageDesc": "插件界面语言",
     "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
     "notBound": "未绑定",
-    "readingModeNotice": "说明：阅读模式当前不显示批注高亮，请在编辑模式下查看高亮。",
+    "readingModeNotice": "阅读模式会显示对得上的高亮颜色，不会修改笔记原文。",
     "aboutText": "文章批注 0.2.4 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
   },
   "colorNames": {

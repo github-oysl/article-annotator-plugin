@@ -125,6 +125,7 @@ export async function migrateLegacyPluginData(plugin: ArticleAnnotator, settings
   }
 
 export async function loadSettingsAndData(plugin: ArticleAnnotator) {
+  try {
     const local = await plugin.readLegacyPluginData();
     const hasLocalAnnotationData = plugin.hasAnnotationStoreContent(local);
     plugin.settings = Object.assign({}, DEFAULT_SETTINGS, local?.settings || {});
@@ -162,7 +163,12 @@ export async function loadSettingsAndData(plugin: ArticleAnnotator) {
       }
     }
     plugin.applyAnnotationStoreData(synced);
+  } finally {
+    const store = await plugin.readAnnotationStoreFile(plugin.getAnnotationStorePath());
+    if (store)
+      await forgetLegacyAnnotationCopies(plugin);
   }
+}
 
 export async function reloadAnnotationStoreFromVault(plugin: ArticleAnnotator) {
     if (plugin.isReloadingAnnotationStore)
@@ -181,13 +187,23 @@ export async function reloadAnnotationStoreFromVault(plugin: ArticleAnnotator) {
     }
   }
 
+/** 批注只留在知识库文件里。插件 data.json 只保留设置，避免两份记录各走各的同步。 */
+export async function forgetLegacyAnnotationCopies(plugin: ArticleAnnotator) {
+    const local = await plugin.readLegacyPluginData();
+    if (!local || (!("annotations" in local) && !("groups" in local)))
+      return;
+    const next = { ...local };
+    delete next.annotations;
+    delete next.groups;
+    await plugin.saveData(next);
+  }
+
 export async function persistAll(plugin: ArticleAnnotator) {
-    const persisted = {
+    await plugin.writeAnnotationStore({
       annotations: plugin.data,
       groups: plugin.groups
-    };
-    await plugin.writeAnnotationStore(persisted);
-    await plugin.writeLegacyPluginData(persisted);
+    });
+    await forgetLegacyAnnotationCopies(plugin);
   }
 
 export async function saveAnnotations(plugin: ArticleAnnotator) {

@@ -50,7 +50,7 @@ export class AnnotatorSidebarView extends ItemView {
       emptyEl.createEl("p", { text: t("notifications.openFileFirst", this.plugin) });
       return;
     }
-    const annotations = this.plugin.getAnnotationsForFile(this.currentFile.path);
+    const annotations = this.plugin.getAnnotationsForFile(this.currentFile.path).filter((annotation) => annotation.anchor !== "file-missing");
     const stats = container.createDiv("aa-sidebar-stats");
     const highlightCount = annotations.filter((a) => a.type === "highlight").length;
     const noteCount = annotations.filter((a) => a.noteContent).length;
@@ -117,6 +117,7 @@ export class AnnotatorSidebarView extends ItemView {
       emptyEl.createEl("p", {
         text: t("ui.emptyHint", this.plugin)
       });
+      this.renderMissingFiles(list);
       return;
     }
     const sorted = [...annotations].sort((a, b) => {
@@ -262,6 +263,26 @@ export class AnnotatorSidebarView extends ItemView {
         this.renderAnnotationCard(list, annotation);
       });
     }
+    this.renderMissingFiles(list);
+  }
+  anchorStatusText(anchor: Annotation["anchor"]): string {
+    if (anchor === "ambiguous")
+      return t("ui.anchorAmbiguous", this.plugin);
+    if (anchor === "missing")
+      return t("ui.anchorMissing", this.plugin);
+    if (anchor === "file-missing")
+      return t("ui.anchorFileMissing", this.plugin);
+    return "";
+  }
+  renderMissingFiles(list: HTMLElement) {
+    const missing = this.plugin.data.filter((annotation) => annotation.anchor === "file-missing");
+    if (missing.length === 0)
+      return;
+    const separator = list.createDiv("aa-ungrouped-separator");
+    separator.setText(t("ui.orphanHeading", this.plugin));
+    missing.forEach((annotation) => {
+      this.renderAnnotationCard(list, annotation);
+    });
   }
   scrollToCard(annotationId: string) {
     const card = this.containerEl.querySelector(`.aa-card[data-annotation-id="${annotationId}"]`);
@@ -388,6 +409,11 @@ export class AnnotatorSidebarView extends ItemView {
         const noteEl = body.createDiv("aa-card-note");
         noteEl.setText(a.noteContent);
       }
+      const anchorLabel = this.anchorStatusText(a.anchor);
+      if (anchorLabel) {
+        const status = body.createDiv("aa-anchor-status");
+        status.setText(anchorLabel);
+      }
 
       const lineInfo = body.createDiv("aa-card-line");
       lineInfo.setText(getAnnotationLocationLabel(a, this.plugin));
@@ -402,12 +428,27 @@ export class AnnotatorSidebarView extends ItemView {
         this.editingId = a.id;
         this.render();
       };
+      const located = a.anchor == null || a.anchor === "ok";
+      if (!located) {
+        const reassignBtn = cardActions.createEl("button", {
+          text: t("ui.reassign", this.plugin),
+          attr: { type: "button" }
+        });
+        reassignBtn.onclick = (event) => {
+          event.stopPropagation();
+          void this.plugin.reassignAnnotation(a);
+        };
+      }
       const navBtn = cardActions.createEl("button", {
         text: t("ui.navigate", this.plugin),
         attr: { type: "button" }
       });
       navBtn.onclick = async (e) => {
         e.stopPropagation();
+        if (!located) {
+          await this.plugin.revealUnanchored(a);
+          return;
+        }
         await this.plugin.navigateToAnnotation(a);
       };
       const deleteBtn = cardActions.createEl("button", {
@@ -435,6 +476,10 @@ export class AnnotatorSidebarView extends ItemView {
         const target = evt.target;
         if (!(target instanceof Element) || target.closest(".aa-card-actions"))
           return;
+        if (a.anchor && a.anchor !== "ok") {
+          void this.plugin.revealUnanchored(a);
+          return;
+        }
         void this.plugin.navigateToAnnotation(a);
       });
       body.addClass("is-navigable");
