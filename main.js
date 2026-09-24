@@ -2498,7 +2498,7 @@ function mountAnnotationCard(container, annotation, plugin, onChanged) {
   else if (!located)
     card.createDiv({ cls: "aa-card-edit-hint", text: t("ui.reassignHint", plugin) });
   const meta = card.createDiv("aa-card-meta");
-  const location = annotation.anchor === "file-missing" ? "" : getAnnotationLocationLabel(annotation, plugin);
+  const location = compactLocation(annotation);
   const when = formatTime(annotation.created, plugin);
   meta.createSpan({
     cls: "aa-card-meta-label",
@@ -2528,6 +2528,15 @@ function mountAnnotationCard(container, annotation, plugin, onChanged) {
     openCard();
   });
   return card;
+}
+function compactLocation(annotation) {
+  if (annotation.anchor && annotation.anchor !== "ok")
+    return "";
+  if (annotation.fileType === "pdf" && isPdfPosition(annotation.position))
+    return `P${annotation.position.page}`;
+  if (isMarkdownPosition(annotation.position))
+    return `L${annotation.position.startLine + 1}`;
+  return "";
 }
 function live(plugin, annotation) {
   return plugin.data.find((item) => item.id === annotation.id) ?? annotation;
