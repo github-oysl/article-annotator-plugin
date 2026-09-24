@@ -660,6 +660,28 @@ export default class ArticleAnnotator extends Plugin {
     });
     new Notice(t("notifications.reassigned", this));
   }
+  /** 找已打开该文件的编辑器，把批注原文范围换算成视口坐标；文件没打开或 PDF 时返回 null。 */
+  annotationDomRect(annotation: Annotation): { left: number; top: number; bottom: number; width: number } | null {
+    if (!isMarkdownPosition(annotation.position))
+      return null;
+    const editor = this.editorInFile(annotation.filePath);
+    if (!editor)
+      return null;
+    const cm = (editor as unknown as { cm?: { coordsAtPos?: (pos: number, side: number) => { left: number; right: number; top: number; bottom: number } | null } }).cm;
+    if (!cm?.coordsAtPos)
+      return null;
+    try {
+      const position = annotation.position;
+      const start = cm.coordsAtPos(editor.posToOffset({ line: position.startLine, ch: position.startCh }), -1);
+      const end = cm.coordsAtPos(editor.posToOffset({ line: position.endLine, ch: position.endCh }), 1);
+      if (!start || !end)
+        return null;
+      const left = Math.min(start.left, end.left);
+      return { left, top: Math.min(start.top, end.top), bottom: Math.max(start.bottom, end.bottom), width: Math.max(40, Math.abs(end.right - left)) };
+    } catch {
+      return null;
+    }
+  }
   /** 修改已有批注或高亮的颜色和文字，不新建一条。 */
   openNoteEditor(existing: Annotation) {
     const modal = new NoteModal(this.app, this, {
@@ -667,7 +689,7 @@ export default class ArticleAnnotator extends Plugin {
       color: existing.color,
       noteContent: existing.noteContent,
       tags: existing.tags ?? [],
-      center: true
+      anchorRect: this.annotationDomRect(existing)
     }, async (content, color, tags) => {
       const current = this.data.find((item) => item.id === existing.id);
       if (!current)
@@ -829,6 +851,56 @@ export default class ArticleAnnotator extends Plugin {
     this.openNoteComposer(annotation);
   }
   // ==================== 导出 ====================
+  /** 批注中心菜单：把全库批注按文件分组导出到一个 Markdown 文件。 */
+  async exportAllAnnotations() {
+    if (this.data.length === 0) {
+      new Notice(t("notifications.noAnnotations", this));
+      return;
+    }
+    const byFile = new Map<string, Annotation[]>();
+    for (const annotation of this.data) {
+      const list = byFile.get(annotation.filePath) ?? [];
+      list.push(annotation);
+      byFile.set(annotation.filePath, list);
+    }
+    let content = t("export.title", this).replace("${name}", t("ui.libraryTitle", this));
+    content += `> ${t("export.exportTime", this)}${(/* @__PURE__ */ new Date()).toLocaleString()}
+`;
+    content += `> ${t("export.totalCount", this)}${this.data.length}${t("export.items", this)}
+
+---
+
+`;
+    for (const [filePath, annotations] of [...byFile.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      content += `## 📄 ${filePath}
+
+`;
+      [...annotations].sort(compareByDocumentPosition).forEach((annotation, index) => {
+        const colorName = getColorName(annotation.color, this) || t("ui.highlights", this);
+        const hasNote = annotation.noteContent ? "\u{1F4DD}" : "\u{1F506}";
+        content += `### ${index + 1}. ${hasNote} ${colorName}
+
+`;
+        content += `> “${annotation.highlightedText}”
+
+`;
+        if (annotation.noteContent)
+          content += `${t("export.note", this)}${annotation.noteContent}
+
+`;
+        content += `${t("export.location", this)}${getAnnotationLocationLabel(annotation, this)}*
+
+`;
+      });
+    }
+    const exportPath = "article-annotator-export.md";
+    const existing = this.app.vault.getAbstractFileByPath(exportPath);
+    if (existing instanceof TFile)
+      await this.app.vault.modify(existing, content);
+    else
+      await this.app.vault.create(exportPath, content);
+    new Notice(`${t("notifications.exportDone", this)}${exportPath}`);
+  }
   async exportAnnotations() {
     const file = this.activeFile;
     if (!file) {

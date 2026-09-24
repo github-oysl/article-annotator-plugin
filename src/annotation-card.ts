@@ -28,7 +28,15 @@ function showMenu(menu: Menu, evt: Event, anchor: HTMLElement) {
   menu.showAtPosition({ x: rect.left, y: rect.bottom, width: rect.width }, anchor.ownerDocument);
 }
 
-export function mountAnnotationCard(container: HTMLElement, annotation: Annotation, plugin: ArticleAnnotator, onChanged: () => void, options?: { showFilePath?: boolean }): HTMLElement {
+export interface CardOptions {
+  showFilePath?: boolean;
+  /** 批注中心卡片显示标题行（颜色圆点 + 文件名 + 操作按钮） */
+  showTitle?: boolean;
+  /** 覆盖点击卡片的默认行为（如批注中心改为选中查看详情）；定位图标始终跳原文 */
+  onOpen?: () => void;
+}
+
+export function mountAnnotationCard(container: HTMLElement, annotation: Annotation, plugin: ArticleAnnotator, onChanged: () => void, options?: CardOptions): HTMLElement {
   const card = container.createDiv("aa-card");
   card.addClass("aa-reading-card");
   card.dataset.annotationId = annotation.id;
@@ -56,6 +64,14 @@ export function mountAnnotationCard(container: HTMLElement, annotation: Annotati
     evt.stopPropagation();
     openAnnotationMenu(plugin, live(plugin, annotation), evt, moreBtn, onChanged);
   };
+  if (options?.showTitle) {
+    card.addClass("has-title");
+    const titleRow = card.createDiv("aa-card-title-row");
+    titleRow.createSpan({ cls: "aa-card-dot", attr: { "aria-hidden": "true" } });
+    const fileName = annotation.filePath.split("/").pop() ?? annotation.filePath;
+    titleRow.createSpan({ cls: "aa-card-title", text: fileName.replace(/\.md$/i, "") });
+    titleRow.appendChild(hover);
+  }
   card.createDiv({ cls: "aa-card-text", text: annotation.highlightedText });
   if (annotation.noteContent.trim())
     card.createDiv({ cls: "aa-card-note", text: annotation.noteContent });
@@ -76,15 +92,31 @@ export function mountAnnotationCard(container: HTMLElement, annotation: Annotati
   const meta = card.createDiv("aa-card-meta");
   const location = compactLocation(annotation);
   const when = formatTime(annotation.created, plugin);
+  const modified = annotation.updated > annotation.created + 60_000 ? ` · ${t("ui.modified", plugin)} ${formatTime(annotation.updated, plugin)}` : "";
   meta.createSpan({
     cls: "aa-card-meta-label",
-    text: location ? `${location} · ${when}` : when
+    text: `${location ? `${location} · ` : ""}${when}${modified}`
   });
   if (located) {
-    const locate = meta.createSpan({ cls: "aa-card-locate", attr: { "aria-hidden": "true" } });
+    const locate = meta.createSpan({ cls: "aa-card-locate", attr: { "aria-hidden": "true", role: "button", tabindex: "0" } });
     setIcon(locate, "locate");
+    const gotoSource = (evt: Event) => {
+      evt.stopPropagation();
+      void plugin.navigateToAnnotation(live(plugin, annotation));
+    };
+    locate.addEventListener("click", gotoSource);
+    locate.addEventListener("keydown", (evt) => {
+      if (evt.key === "Enter") {
+        evt.preventDefault();
+        gotoSource(evt);
+      }
+    });
   }
   const openCard = () => {
+    if (options?.onOpen) {
+      options.onOpen();
+      return;
+    }
     if (!canNavigateAnnotation(live(plugin, annotation)))
       return;
     void plugin.navigateToAnnotation(live(plugin, annotation));

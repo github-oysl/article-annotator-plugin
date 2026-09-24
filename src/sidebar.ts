@@ -325,6 +325,10 @@ export class AnnotatorSidebarView extends ItemView {
   renderFilterPopover(row: HTMLElement, annotations: Annotation[]) {
     mountFilterPopover(row, annotations, this.filter, this.plugin, (filter) => {
       this.filter = filter;
+      this.filterOpen = false;
+      this.render();
+    }, () => {
+      this.filterOpen = false;
       this.render();
     });
   }

@@ -4,32 +4,38 @@ import { validateHexColor } from "./annotation-model";
 import { chordLabel, getColorName, t } from "./i18n";
 import type ArticleAnnotator from "./main";
 
+export interface AnchorRect {
+  left: number;
+  top: number;
+  bottom: number;
+  width: number;
+}
+
 export class NoteModal extends Modal {
   plugin: ArticleAnnotator;
   highlightedText: string;
   color: string;
+  anchorRect: AnchorRect | null = null;
   onSave: (content: string, color: string, tags: string[]) => void | Promise<void>;
   textarea: HTMLTextAreaElement | null = null;
   draftContent = "";
   tags: string[] = [];
   tagRow: HTMLElement | null = null;
   tagInputVisible = false;
-  /** 编辑已有批注时没有选区，直接居中显示。 */
-  centerOnScreen = false;
   /** 点击面板外部时挂的监听，关闭时移除。 */
   private outsideHandler: ((evt: PointerEvent) => void) | null = null;
   /** save：按钮或快捷键；discard：取消或 Esc；implicit：点遮罩或标题栏关闭。 */
   closeReason: "save" | "discard" | "implicit" = "implicit";
   settled = false;
 
-  constructor(app: App, plugin: ArticleAnnotator, seed: { highlightedText: string; color: string; noteContent?: string; tags?: string[]; center?: boolean }, onSave: (content: string, color: string, tags: string[]) => void | Promise<void>) {
+  constructor(app: App, plugin: ArticleAnnotator, seed: { highlightedText: string; color: string; noteContent?: string; tags?: string[]; anchorRect?: AnchorRect | null }, onSave: (content: string, color: string, tags: string[]) => void | Promise<void>) {
     super(app);
     this.plugin = plugin;
     this.highlightedText = seed.highlightedText;
     this.color = seed.color;
     this.draftContent = seed.noteContent || "";
     this.tags = [...(seed.tags ?? [])];
-    this.centerOnScreen = seed.center ?? false;
+    this.anchorRect = seed.anchorRect ?? null;
     this.onSave = onSave;
   }
   onOpen() {
@@ -41,32 +47,6 @@ export class NoteModal extends Modal {
     const quoteBlock = contentEl.createDiv("aa-note-modal-quote");
     quoteBlock.createEl("p", { text: this.highlightedText });
     quoteBlock.style.setProperty("--aa-quote-accent", this.color);
-    const colorRow = contentEl.createDiv("aa-note-modal-colors");
-    this.colorChoices().forEach((color) => {
-      const swatch = colorRow.createEl("button", {
-        cls: "aa-color-swatch",
-        attr: {
-          type: "button",
-          "aria-label": this.colorLabel(color),
-          "aria-pressed": color === this.color ? "true" : "false"
-        }
-      });
-      swatch.style.background = color;
-      if (color === this.color)
-        swatch.addClass("is-selected");
-      swatch.onclick = () => {
-        this.color = color;
-        quoteBlock.style.setProperty("--aa-quote-accent", color);
-        contentEl.querySelectorAll(".aa-color-swatch").forEach((el) => {
-          el.classList.remove("is-selected");
-          if (el instanceof HTMLButtonElement)
-            el.setAttr("aria-pressed", "false");
-        });
-        swatch.addClass("is-selected");
-        swatch.setAttr("aria-pressed", "true");
-      };
-    });
-    this.tagRow = contentEl.createDiv("aa-note-tags");
     const textarea = contentEl.createEl("textarea", {
       attr: { placeholder: t("ui.placeholder", this.plugin), rows: "4" }
     });
@@ -75,8 +55,18 @@ export class NoteModal extends Modal {
     textarea.addEventListener("input", () => {
       this.draftContent = textarea.value;
     });
+    // Tab / Shift+Tab 在颜色间循环切换（Mac 与 Windows 的 Tab 键行为一致，无需区分）
+    textarea.addEventListener("keydown", (evt) => {
+      if (evt.key !== "Tab" || evt.isComposing)
+        return;
+      evt.preventDefault();
+      this.cycleColor(evt.shiftKey ? -1 : 1);
+    });
     // 标签行放在输入框下方：chips + ＋按钮
+    this.tagRow = contentEl.createDiv("aa-note-tags");
     this.renderTags();
+    const colorRow = contentEl.createDiv("aa-note-modal-colors");
+    this.renderColors(colorRow, quoteBlock);
     const btnRow = contentEl.createDiv("aa-modal-buttons");
     const cancelBtn = btnRow.createEl("button", {
       text: t("ui.cancel", this.plugin),
@@ -98,7 +88,57 @@ export class NoteModal extends Modal {
     const ownerWindow = this.containerEl.ownerDocument.defaultView ?? window;
     ownerWindow.setTimeout(() => textarea.focus(), 30);
   }
-  /** 把面板放到当前选区下方；拿不到选区（编辑已有批注等）就居中偏上。 */
+  colorChoices(): string[] {
+    const colors = [...this.plugin.settings.colors];
+    const custom = this.plugin.settings.customHighlightColor;
+    if (custom && validateHexColor(custom) && !colors.includes(custom))
+      colors.push(custom);
+    return colors;
+  }
+  /** 把第 current 个之后的第 delta 个颜色设为当前色，并同步圆点选中态。 */
+  cycleColor(delta: number) {
+    const colors = this.colorChoices();
+    if (colors.length === 0)
+      return;
+    const current = colors.findIndex((color) => color.toLowerCase() === this.color.toLowerCase());
+    const next = colors[(current + delta + colors.length) % colors.length] ?? colors[0];
+    this.color = next;
+    this.containerEl.querySelectorAll<HTMLButtonElement>(".aa-color-swatch").forEach((swatch) => {
+      const active = (swatch.style.background || "").toLowerCase() === next.toLowerCase();
+      swatch.classList.toggle("is-selected", active);
+      swatch.setAttr("aria-pressed", active ? "true" : "false");
+    });
+    const quote = this.containerEl.querySelector<HTMLElement>(".aa-note-modal-quote");
+    quote?.style.setProperty("--aa-quote-accent", next);
+  }
+  renderColors(colorRow: HTMLElement, quoteBlock: HTMLElement) {
+    colorRow.empty();
+    this.colorChoices().forEach((color) => {
+      const swatch = colorRow.createEl("button", {
+        cls: "aa-color-swatch",
+        attr: {
+          type: "button",
+          "aria-label": this.colorLabel(color),
+          "aria-pressed": color === this.color ? "true" : "false"
+        }
+      });
+      swatch.style.background = color;
+      if (color === this.color)
+        swatch.addClass("is-selected");
+      swatch.onclick = () => {
+        this.color = color;
+        quoteBlock.style.setProperty("--aa-quote-accent", color);
+        colorRow.querySelectorAll(".aa-color-swatch").forEach((el) => {
+          el.classList.remove("is-selected");
+          if (el instanceof HTMLButtonElement)
+            el.setAttr("aria-pressed", "false");
+        });
+        swatch.addClass("is-selected");
+        swatch.setAttr("aria-pressed", "true");
+      };
+    });
+  }
+  /** 把面板放到批注原文/选区下方；拿不到坐标（文件未打开、PDF 等）就居中偏上。 */
   placeNearSelection() {
     const doc = this.containerEl.ownerDocument;
     const win = doc.defaultView;
@@ -107,13 +147,13 @@ export class NoteModal extends Modal {
     this.modalEl.addClass("aa-note-popover-panel");
     const width = Math.min(420, win.innerWidth - 16);
     this.modalEl.style.width = `${width}px`;
-    let rect: DOMRect | null = null;
-    if (!this.centerOnScreen) {
+    let rect: AnchorRect | null = this.anchorRect;
+    if (!rect) {
       const sel = doc.getSelection();
       if (sel && sel.rangeCount > 0) {
         const rangeRect = sel.getRangeAt(0).getBoundingClientRect();
         if (rangeRect.width > 0 || rangeRect.height > 0)
-          rect = rangeRect;
+          rect = { left: rangeRect.left, top: rangeRect.top, bottom: rangeRect.bottom, width: rangeRect.width };
       }
     }
     const height = this.modalEl.offsetHeight;
@@ -196,13 +236,6 @@ export class NoteModal extends Modal {
       this.tagInputVisible = true;
       this.renderTags();
     };
-  }
-  colorChoices(): string[] {
-    const colors = [...this.plugin.settings.colors];
-    const custom = this.plugin.settings.customHighlightColor;
-    if (custom && validateHexColor(custom) && !colors.includes(custom))
-      colors.push(custom);
-    return colors;
   }
   colorLabel(color: string): string {
     if (color === this.plugin.settings.customHighlightColor && this.plugin.settings.customHighlightColorName)

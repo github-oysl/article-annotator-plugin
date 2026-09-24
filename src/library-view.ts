@@ -1,6 +1,7 @@
 /** 跨文件的批注列表。只列出已有批注的路径，不是文件管理器。 */
-import { ItemView, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Menu, Platform, setIcon, TFile, type WorkspaceLeaf } from "obsidian";
 import { mountAnnotationCard } from "./annotation-card";
+import { isMarkdownPosition, formatTime } from "./annotation-model";
 import {
   compareAnnotations,
   defaultAnnotationFilter,
@@ -36,6 +37,10 @@ export class AnnotationLibraryView extends ItemView {
   kind: AnnotationKind = "all";
   filter: AnnotationFilter = defaultAnnotationFilter();
   filterOpen = false;
+  sortOpen = false;
+  viewMode: "list" | "grid" = "list";
+  selectedId: string | null = null;
+  expandedTags = false;
   searchTimer: number | null = null;
   pathKind: PathKind = "all";
   pathValue = "";
@@ -59,13 +64,13 @@ export class AnnotationLibraryView extends ItemView {
       this.containerEl.addClass("is-touch");
     const doc = this.containerEl.ownerDocument;
     this.registerDomEvent(doc, "pointerdown", (evt) => {
-      if (!this.filterOpen)
+      if (!this.filterOpen && !this.sortOpen)
         return;
       const target = evt.target;
       if (!(target instanceof Node))
         return;
       const popover = this.containerEl.querySelector(".aa-filter-popover");
-      const buttons = this.containerEl.querySelectorAll(".aa-filter-button, .aa-tabs-toggle");
+      const buttons = this.containerEl.querySelectorAll(".aa-filter-button, .aa-sort-button");
       let insideButton = false;
       buttons.forEach((button) => {
         if (button.contains(target))
@@ -73,16 +78,21 @@ export class AnnotationLibraryView extends ItemView {
       });
       if (insideButton || popover?.contains(target))
         return;
-      this.filterOpen = false;
-      popover?.remove();
+      this.closePopovers();
     });
     this.registerDomEvent(doc, "keydown", (evt) => {
-      if (evt.key !== "Escape" || !this.filterOpen)
+      if (evt.key !== "Escape" || (!this.filterOpen && !this.sortOpen))
         return;
-      this.filterOpen = false;
-      this.containerEl.querySelector(".aa-filter-popover")?.remove();
+      this.closePopovers();
     });
     this.render();
+  }
+  closePopovers() {
+    this.filterOpen = false;
+    this.sortOpen = false;
+    this.containerEl.querySelector(".aa-filter-popover")?.remove();
+    if (this.containerEl.isConnected)
+      this.render();
   }
   async onClose() {
     this.clearSearchTimer();
@@ -146,8 +156,13 @@ export class AnnotationLibraryView extends ItemView {
     const annotations = this.sourceAnnotations();
     this.renderSearch(main, annotations);
     this.renderTabs(main, annotations);
-    const list = main.createDiv("aa-sidebar-list");
+    const content = main.createDiv("aa-library-content");
+    const list = content.createDiv("aa-sidebar-list");
+    if (this.viewMode === "grid")
+      list.addClass("is-grid");
     this.fillList(list);
+    const detail = content.createDiv("aa-library-detail");
+    void this.renderDetail(detail);
     if (searchWasFocused) {
       const input = container.querySelector(".aa-sidebar-search");
       if (input instanceof HTMLInputElement) {
@@ -160,14 +175,70 @@ export class AnnotationLibraryView extends ItemView {
   }
   renderHeader(container: HTMLElement) {
     const header = container.createDiv("aa-library-header");
-    header.createEl("h3", { text: t("ui.libraryTitle", this.plugin) });
-    const closeBtn = header.createEl("button", {
-      attr: { type: "button", "aria-label": t("ui.close", this.plugin) }
+    const titleWrap = header.createDiv("aa-library-title-wrap");
+    const icon = titleWrap.createSpan("aa-library-title-icon");
+    setIcon(icon, "library");
+    const textWrap = titleWrap.createDiv("aa-library-title-text");
+    textWrap.createEl("h3", { text: t("ui.libraryTitle", this.plugin) });
+    textWrap.createEl("p", { text: t("ui.librarySubtitle", this.plugin) });
+    const right = header.createDiv("aa-library-header-right");
+    right.createSpan({ cls: "aa-library-total", text: t("ui.totalCount", this.plugin).replace("${n}", String(this.plugin.data.length)) });
+    const moreBtn = right.createEl("button", {
+      attr: { type: "button", "aria-label": t("ui.moreActions", this.plugin) }
     });
-    setIcon(closeBtn, "x");
-    closeBtn.onclick = () => {
-      this.leaf.detach();
+    setIcon(moreBtn, "more-horizontal");
+    moreBtn.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.openHeaderMenu(evt, moreBtn);
     };
+  }
+  openHeaderMenu(evt: MouseEvent, anchor: HTMLElement) {
+    const menu = new Menu();
+    menu.addItem((item) => {
+      item.setTitle(t("ui.menuExportAll", this.plugin));
+      item.setIcon("download");
+      item.onClick(() => {
+        void this.plugin.exportAllAnnotations();
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle(t("ui.menuBatchManage", this.plugin));
+      item.setIcon("square-check");
+      item.onClick(() => {
+        void this.plugin.activateSidebar();
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle(t("ui.menuOpenSidebar", this.plugin));
+      item.setIcon("panel-right");
+      item.onClick(() => {
+        void this.plugin.activateSidebar();
+      });
+    });
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setTitle(t("ui.menuSettings", this.plugin));
+      item.setIcon("settings");
+      item.onClick(() => {
+        const appWithSettings = this.app as unknown as { setting: { open: () => Promise<void> } };
+        void appWithSettings.setting.open();
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle(t("ui.menuHelp", this.plugin));
+      item.setIcon("book-open");
+      item.onClick(() => {
+        const win = this.containerEl.ownerDocument.defaultView ?? window;
+        win.open("https://github.com/github-oysl/article-annotator-plugin#readme", "_blank");
+      });
+    });
+    if (evt instanceof MouseEvent && (evt.clientX !== 0 || evt.clientY !== 0))
+      menu.showAtMouseEvent(evt);
+    else {
+      const rect = anchor.getBoundingClientRect();
+      menu.showAtPosition({ x: rect.left, y: rect.bottom, width: rect.width }, anchor.ownerDocument);
+    }
   }
   renderList() {
     const list = this.containerEl.querySelector(".aa-library-main .aa-sidebar-list");
@@ -196,11 +267,27 @@ export class AnnotationLibraryView extends ItemView {
       this.render();
     };
     this.renderFolder(nav, buildTree(this.plugin.data), 0);
-    const tags = [...new Set(this.plugin.data.flatMap((annotation) => annotation.tags ?? []))].sort((a, b) => a.localeCompare(b));
+    const tagCounts = new Map<string, number>();
+    for (const annotation of this.plugin.data)
+      for (const tag of annotation.tags ?? [])
+        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    const tags = [...tagCounts.keys()].sort((a, b) => (tagCounts.get(b) ?? 0) - (tagCounts.get(a) ?? 0));
     if (tags.length > 0) {
       this.renderSection(nav, t("ui.filterTag", this.plugin));
-      for (const tag of tags)
-        this.renderToggle(nav, tag, this.filter.tags.includes(tag), () => this.toggleValue("tags", tag));
+      const visibleTags = this.expandedTags ? tags : tags.slice(0, 5);
+      for (const tag of visibleTags)
+        this.renderTagToggle(nav, tag, tagCounts.get(tag) ?? 0);
+      if (tags.length > 5) {
+        const moreBtn = nav.createEl("button", {
+          cls: "aa-library-path aa-library-more-tags",
+          attr: { type: "button" }
+        });
+        moreBtn.createSpan({ text: this.expandedTags ? "▲" : t("ui.moreTags", this.plugin) });
+        moreBtn.onclick = () => {
+          this.expandedTags = !this.expandedTags;
+          this.render();
+        };
+      }
     }
     const colors = [...new Set(this.plugin.data.map((annotation) => annotation.color))];
     if (colors.length > 0) {
@@ -245,6 +332,17 @@ export class AnnotationLibraryView extends ItemView {
     if (selected)
       button.addClass("is-selected");
     button.onclick = onClick;
+  }
+  renderTagToggle(nav: HTMLElement, tag: string, count: number) {
+    const button = nav.createEl("button", {
+      cls: "aa-library-path",
+      attr: { type: "button", "aria-pressed": this.filter.tags.includes(tag) ? "true" : "false" }
+    });
+    button.createSpan({ text: `# ${tag}` });
+    button.createSpan({ cls: "aa-library-count", text: String(count) });
+    if (this.filter.tags.includes(tag))
+      button.addClass("is-selected");
+    button.onclick = () => this.toggleValue("tags", tag);
   }
   toggleValue(key: "tags" | "colors", value: string) {
     const selected = new Set(this.filter[key]);
@@ -318,9 +416,9 @@ export class AnnotationLibraryView extends ItemView {
       cls: "aa-sidebar-search",
       attr: {
         type: "search",
-        placeholder: t("ui.searchAnnotationsPlaceholder", this.plugin),
+        placeholder: t("ui.searchQuotesPlaceholder", this.plugin),
         autocomplete: "off",
-        "aria-label": t("ui.searchAnnotationsPlaceholder", this.plugin)
+        "aria-label": t("ui.searchQuotesPlaceholder", this.plugin)
       }
     });
     input.value = this.query;
@@ -329,46 +427,103 @@ export class AnnotationLibraryView extends ItemView {
       this.scheduleSearch();
     });
     const filterBtn = row.createEl("button", {
-      cls: "aa-filter-button",
+      cls: "aa-filter-button aa-filter-text-button",
       attr: {
         type: "button",
-        "aria-label": t("ui.filter", this.plugin),
         "aria-expanded": this.filterOpen ? "true" : "false"
       }
     });
-    setIcon(filterBtn, "list-filter");
+    setIcon(filterBtn, "filter");
+    filterBtn.createSpan({ text: t("ui.filter", this.plugin) });
     if (isFilterActive(this.filter) || this.timeRange !== "all")
       filterBtn.addClass("is-active");
     filterBtn.onclick = (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
-      this.toggleFilter();
-    };
-    if (!this.filterOpen)
-      return;
-    const popover = mountFilterPopover(row, annotations, this.filter, this.plugin, (filter) => {
-      this.filter = filter;
+      this.sortOpen = false;
+      this.filterOpen = !this.filterOpen;
       this.render();
+    };
+    const sortLabel = this.filter.sort === "position" ? t("ui.sortPosition", this.plugin) : this.filter.sort === "created" ? t("ui.sortCreated", this.plugin) : t("ui.sortUpdated", this.plugin);
+    const sortBtn = row.createEl("button", {
+      cls: "aa-sort-button",
+      attr: {
+        type: "button",
+        "aria-expanded": this.sortOpen ? "true" : "false"
+      }
     });
-    popover.createDiv({ cls: "aa-filter-label", text: t("ui.filterTime", this.plugin) });
-    const ranges: Array<{ id: TimeRange; key: string }> = [
-      { id: "all", key: "ui.timeAll" },
-      { id: "today", key: "ui.timeToday" },
-      { id: "week", key: "ui.timeWeek" }
-    ];
-    for (const range of ranges) {
-      const button = popover.createEl("button", {
-        cls: "aa-filter-option",
-        text: t(range.key, this.plugin),
-        attr: { type: "button", "aria-pressed": this.timeRange === range.id ? "true" : "false" }
+    setIcon(sortBtn, "arrow-up-down");
+    sortBtn.createSpan({ text: t("ui.sortBy", this.plugin).replace("${n}", sortLabel) });
+    sortBtn.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.filterOpen = false;
+      this.sortOpen = !this.sortOpen;
+      this.render();
+    };
+    const viewBtn = row.createEl("button", {
+      cls: "aa-view-toggle",
+      attr: {
+        type: "button",
+        "aria-label": t(this.viewMode === "list" ? "ui.viewGrid" : "ui.viewList", this.plugin)
+      }
+    });
+    setIcon(viewBtn, this.viewMode === "list" ? "layout-grid" : "list");
+    viewBtn.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.viewMode = this.viewMode === "list" ? "grid" : "list";
+      this.render();
+    };
+    if (this.filterOpen) {
+      mountFilterPopover(row, annotations, this.filter, this.plugin, (filter) => {
+        this.filter = filter;
+        this.filterOpen = false;
+        this.render();
+      }, () => {
+        this.filterOpen = false;
+        this.render();
+      }, {
+        timeRange: this.timeRange,
+        onTimeRange: (range) => {
+          this.timeRange = range;
+        }
       });
-      if (this.timeRange === range.id)
-        button.addClass("is-selected");
-      button.onclick = (evt) => {
+      return;
+    }
+    if (this.sortOpen) {
+      const popover = row.createDiv("aa-filter-popover aa-sort-popover");
+      const closeBtn = popover.createEl("button", {
+        cls: "aa-filter-close",
+        attr: { type: "button", "aria-label": t("ui.close", this.plugin) }
+      });
+      setIcon(closeBtn, "x");
+      closeBtn.onclick = (evt) => {
         evt.preventDefault();
-        this.timeRange = range.id;
+        this.sortOpen = false;
         this.render();
       };
+      popover.createDiv({ cls: "aa-filter-label", text: t("ui.sort", this.plugin) });
+      const sorts: Array<{ id: "position" | "created" | "updated"; key: string }> = [
+        { id: "position", key: "ui.sortPosition" },
+        { id: "created", key: "ui.sortCreated" },
+        { id: "updated", key: "ui.sortUpdated" }
+      ];
+      for (const sort of sorts) {
+        const button = popover.createEl("button", {
+          cls: "aa-filter-option",
+          text: t(sort.key, this.plugin),
+          attr: { type: "button", "aria-pressed": this.filter.sort === sort.id ? "true" : "false" }
+        });
+        if (this.filter.sort === sort.id)
+          button.addClass("is-selected");
+        button.onclick = (evt) => {
+          evt.preventDefault();
+          this.filter = { ...this.filter, sort: sort.id };
+          this.sortOpen = false;
+          this.render();
+        };
+      }
     }
   }
   renderTabs(main: HTMLElement, annotations: Annotation[]) {
@@ -391,24 +546,9 @@ export class AnnotationLibraryView extends ItemView {
         this.render();
       };
     }
-    const toggle = tabs.createEl("button", {
-      cls: "aa-tabs-toggle",
-      attr: {
-        type: "button",
-        "aria-label": t("ui.filter", this.plugin),
-        "aria-expanded": this.filterOpen ? "true" : "false"
-      }
-    });
-    setIcon(toggle, "chevron-down");
-    if (isFilterActive(this.filter) || this.timeRange !== "all")
-      toggle.addClass("is-active");
-    toggle.onclick = (evt) => {
-      evt.preventDefault();
-      evt.stopPropagation();
-      this.toggleFilter();
-    };
   }
   toggleFilter() {
+    this.sortOpen = false;
     this.filterOpen = !this.filterOpen;
     this.render();
   }
@@ -442,7 +582,136 @@ export class AnnotationLibraryView extends ItemView {
       };
       return;
     }
-    visible.forEach((annotation) => mountAnnotationCard(list, annotation, this.plugin, () => this.render(), { showFilePath: true }));
+    if (this.selectedId && !visible.some((annotation) => annotation.id === this.selectedId))
+      this.selectedId = null;
+    visible.forEach((annotation) => {
+      const card = mountAnnotationCard(list, annotation, this.plugin, () => this.render(), {
+        showFilePath: true,
+        showTitle: true,
+        onOpen: () => this.selectAnnotation(annotation.id)
+      });
+      if (annotation.id === this.selectedId)
+        card.addClass("is-selected");
+    });
+  }
+  selectAnnotation(id: string) {
+    this.selectedId = this.selectedId === id ? null : id;
+    this.render();
+  }
+  /** 右侧详情预览：引用、批注、标签、位置信息和原文上下文。 */
+  async renderDetail(detail: HTMLElement) {
+    detail.empty();
+    const annotation = this.selectedId ? this.plugin.data.find((item) => item.id === this.selectedId) : undefined;
+    if (!annotation) {
+      detail.createDiv({ cls: "aa-detail-empty", text: t("ui.detailEmpty", this.plugin) });
+      return;
+    }
+    detail.style.setProperty("--aa-accent", annotation.color);
+    const header = detail.createDiv("aa-detail-header");
+    header.createSpan({ cls: "aa-card-dot", attr: { "aria-hidden": "true" } });
+    const fileName = annotation.filePath.split("/").pop() ?? annotation.filePath;
+    header.createSpan({ cls: "aa-detail-title", text: fileName.replace(/\.md$/i, "") });
+    const headerActions = header.createDiv("aa-detail-actions");
+    const editBtn = headerActions.createEl("button", {
+      attr: { type: "button", "aria-label": t("ui.edit", this.plugin) }
+    });
+    setIcon(editBtn, "pencil");
+    editBtn.onclick = () => this.plugin.openNoteEditor(annotation);
+    const locateBtn = headerActions.createEl("button", {
+      attr: { type: "button", "aria-label": t("ui.locate", this.plugin) }
+    });
+    setIcon(locateBtn, "locate");
+    locateBtn.onclick = () => void this.plugin.navigateToAnnotation(annotation);
+    detail.createDiv({ cls: "aa-detail-path", text: annotation.filePath });
+    detail.createDiv({ cls: "aa-detail-label", text: t("ui.detailQuote", this.plugin) });
+    const quote = detail.createDiv("aa-detail-quote");
+    quote.createEl("p", { text: annotation.highlightedText });
+    detail.createDiv({ cls: "aa-detail-label", text: t("ui.detailNote", this.plugin) });
+    detail.createDiv({
+      cls: "aa-detail-note",
+      text: annotation.noteContent.trim() ? annotation.noteContent : t("ui.detailNoNote", this.plugin)
+    });
+    detail.createDiv({ cls: "aa-detail-label", text: t("ui.detailTags", this.plugin) });
+    const tagRow = detail.createDiv("aa-note-tags aa-detail-tags");
+    (annotation.tags ?? []).forEach((tag) => {
+      const chip = tagRow.createSpan({ cls: "aa-note-tag" });
+      chip.createSpan({ text: tag });
+      const remove = chip.createEl("button", {
+        text: "×",
+        attr: { type: "button", "aria-label": `${t("ui.removeTag", this.plugin)} ${tag}` }
+      });
+      remove.onclick = () => {
+        const tags = (annotation.tags ?? []).filter((item) => item !== tag);
+        void this.plugin.commitAnnotationUpdate(annotation.id, { tags });
+        this.render();
+      };
+    });
+    const addBtn = tagRow.createEl("button", {
+      cls: "aa-note-tag-add",
+      text: "+",
+      attr: { type: "button", "aria-label": t("ui.addTag", this.plugin) }
+    });
+    addBtn.onclick = () => {
+      const input = tagRow.createEl("input", {
+        attr: { type: "text", placeholder: t("ui.tagName", this.plugin), "aria-label": t("ui.addTag", this.plugin) }
+      });
+      addBtn.remove();
+      const commit = () => {
+        const tag = input.value.trim();
+        if (tag && !(annotation.tags ?? []).includes(tag))
+          void this.plugin.commitAnnotationUpdate(annotation.id, { tags: [...(annotation.tags ?? []), tag] });
+        this.render();
+      };
+      input.addEventListener("keydown", (evt) => {
+        if (evt.key === "Enter" && !evt.isComposing) {
+          evt.preventDefault();
+          commit();
+        }
+      });
+      input.addEventListener("blur", () => {
+        commit();
+      });
+      input.focus();
+    };
+    detail.createDiv({ cls: "aa-detail-label", text: t("ui.detailLocation", this.plugin) });
+    const info = detail.createDiv("aa-detail-info");
+    if (annotation.fileType !== "pdf" && isMarkdownPosition(annotation.position)) {
+      const lineRow = info.createDiv("aa-detail-info-row");
+      lineRow.createSpan({ cls: "aa-detail-info-key", text: t("ui.detailLine", this.plugin) });
+      lineRow.createSpan({ cls: "aa-detail-info-value", text: String(annotation.position.startLine + 1) });
+    }
+    const timeRow = info.createDiv("aa-detail-info-row");
+    timeRow.createSpan({ cls: "aa-detail-info-key", text: t("ui.detailCreated", this.plugin) });
+    timeRow.createSpan({ cls: "aa-detail-info-value", text: formatTime(annotation.created, this.plugin) });
+    const updatedRow = info.createDiv("aa-detail-info-row");
+    updatedRow.createSpan({ cls: "aa-detail-info-key", text: t("ui.detailUpdated", this.plugin) });
+    updatedRow.createSpan({ cls: "aa-detail-info-value", text: formatTime(annotation.updated, this.plugin) });
+    if (annotation.fileType === "markdown" && isMarkdownPosition(annotation.position)) {
+      detail.createDiv({ cls: "aa-detail-label", text: t("ui.detailContext", this.plugin) });
+      const context = detail.createDiv("aa-detail-context");
+      const file = this.app.vault.getAbstractFileByPath(annotation.filePath);
+      if (file instanceof TFile) {
+        try {
+          const text = await this.app.vault.read(file);
+          if (!detail.isConnected)
+            return;
+          const lines = text.split("\n");
+          const start = annotation.position.startLine;
+          const end = annotation.position.endLine;
+          const from = Math.max(0, start - 1);
+          const to = Math.min(lines.length - 1, end + 1);
+          for (let index = from; index <= to; index++) {
+            const rowEl = context.createDiv({ cls: "aa-detail-context-row" });
+            if (index >= start && index <= end)
+              rowEl.addClass("is-highlighted");
+            rowEl.createSpan({ cls: "aa-detail-context-line", text: String(index + 1) });
+            rowEl.createSpan({ cls: "aa-detail-context-text", text: lines[index] || " " });
+          }
+        } catch {
+          context.createDiv({ cls: "aa-detail-empty", text: t("ui.detailNoContext", this.plugin) });
+        }
+      }
+    }
   }
 }
 
