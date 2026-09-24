@@ -2031,3 +2031,184 @@ button.aa-color-swatch {
 .aa-filter-text-button {
   width: auto;
 }
+
+
+/* ========== 批注中心/侧栏导航与搜索框专项修复 ==========
+   Obsidian 全局 input/button 元素样式的特异性高于裸 class，
+   统一用容器前缀提高优先级，保证左对齐、单行省略、计数右对齐。 */
+
+/* 搜索框：压过 Obsidian 原生 input 样式 */
+.aa-sidebar .aa-sidebar-search,
+.aa-library .aa-sidebar-search {
+  height: 30px;
+  min-height: 30px;
+  padding: 2px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-form-field, var(--background-secondary));
+  box-shadow: none;
+  font-size: var(--font-ui-small, 13px);
+  text-align: left;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.aa-sidebar .aa-sidebar-search:focus,
+.aa-library .aa-sidebar-search:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+}
+
+/* 导航按钮：透明背景、整行左对齐、文字省略、计数右对齐 */
+.aa-library .aa-library-path {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 10px;
+  padding-left: calc(var(--aa-indent, 12px));
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small, 13px);
+  text-align: left;
+  cursor: pointer;
+}
+
+.aa-library .aa-library-path > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.aa-library .aa-library-path:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.aa-library .aa-library-path.is-selected {
+  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+  color: var(--text-normal);
+}
+
+.aa-library .aa-library-count {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* 文件夹行：箭头与文字同一行，禁止换行 */
+.aa-library .aa-library-folder {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  min-width: 0;
+  padding-left: var(--aa-indent, 8px);
+}
+
+.aa-library .aa-library-folder .aa-library-twist {
+  flex: 0 0 auto;
+}
+
+.aa-library .aa-library-folder .aa-library-path {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  padding-left: 2px;
+}
+
+.aa-library .aa-library-twist {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.aa-library .aa-library-twist:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* 分区标题与颜色区 */
+.aa-library .aa-library-section-title {
+  padding: 14px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.4px;
+}
+
+.aa-library .aa-library-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 12px 8px;
+}
+
+/* 标签行「更多」按钮 */
+.aa-library .aa-library-more-tags {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* 类型 Tab：激活 Pill 强化，压过主题默认 button 背景 */
+.aa-library .aa-sidebar-tabs button,
+.aa-sidebar .aa-sidebar-tabs button {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.aa-library .aa-sidebar-tabs button.is-active,
+.aa-sidebar .aa-sidebar-tabs button.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+/* 列表顺滑度：卡片间距、圆角和过渡 */
+:is(.aa-sidebar, .aa-library) .aa-card {
+  margin: 0 0 6px;
+  border-radius: var(--radius-m);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.aa-library .aa-sidebar-list {
+  padding: 8px 12px 16px;
+}
+
+/* 搜索行按钮与输入框垂直居中对齐 */
+.aa-library .aa-sidebar-search-row {
+  gap: 6px;
+  padding: 6px 12px 4px;
+  align-items: center;
+}
+
+.aa-library .aa-sidebar-search-row .aa-filter-text-button,
+.aa-library .aa-sidebar-search-row .aa-sort-button,
+.aa-library .aa-sidebar-search-row .aa-view-toggle {
+  height: 30px;
+}
+
+/* 详情面板空态与内容垂直节奏 */
+.aa-library .aa-library-detail {
+  line-height: 1.5;
+}
