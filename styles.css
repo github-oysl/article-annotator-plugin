@@ -484,7 +484,7 @@
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.4;
-  color: var(--text-warning, var(--text-muted));
+  color: var(--color-orange, var(--text-error));
 }
 
 .aa-reading-highlight {

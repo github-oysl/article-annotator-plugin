@@ -63,6 +63,8 @@ function wrapRange(chunks: readonly TextChunk[], start: number, end: number, ann
     const mark = doc.createElement("span");
     mark.className = "aa-reading-highlight";
     mark.dataset.annotationId = annotation.id;
+    if (annotation.noteContent)
+      mark.title = annotation.noteContent;
     mark.style.backgroundColor = `${annotation.color}55`;
     mark.style.borderBottom = `2px solid ${annotation.color}`;
     mark.addEventListener("click", (event) => {

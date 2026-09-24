@@ -414,9 +414,18 @@ export class AnnotatorSidebarView extends ItemView {
         const status = body.createDiv("aa-anchor-status");
         status.setText(anchorLabel);
       }
-
-      const lineInfo = body.createDiv("aa-card-line");
-      lineInfo.setText(getAnnotationLocationLabel(a, this.plugin));
+      if (a.anchor === "file-missing") {
+        const fileInfo = body.createDiv("aa-card-line");
+        fileInfo.setText(a.filePath);
+      } else if (a.anchor == null || a.anchor === "ok") {
+        const lineInfo = body.createDiv("aa-card-line");
+        lineInfo.setText(getAnnotationLocationLabel(a, this.plugin));
+      }
+      const located = a.anchor == null || a.anchor === "ok";
+      if (!located) {
+        const reassignHint = body.createDiv("aa-card-edit-hint");
+        reassignHint.setText(t("ui.reassignHint", this.plugin));
+      }
 
       const cardActions = body.createDiv("aa-card-actions");
       const editBtn = cardActions.createEl("button", {
@@ -428,7 +437,6 @@ export class AnnotatorSidebarView extends ItemView {
         this.editingId = a.id;
         this.render();
       };
-      const located = a.anchor == null || a.anchor === "ok";
       if (!located) {
         const reassignBtn = cardActions.createEl("button", {
           text: t("ui.reassign", this.plugin),
@@ -438,19 +446,16 @@ export class AnnotatorSidebarView extends ItemView {
           event.stopPropagation();
           void this.plugin.reassignAnnotation(a);
         };
+      } else {
+        const navBtn = cardActions.createEl("button", {
+          text: t("ui.navigate", this.plugin),
+          attr: { type: "button" }
+        });
+        navBtn.onclick = async (e) => {
+          e.stopPropagation();
+          await this.plugin.navigateToAnnotation(a);
+        };
       }
-      const navBtn = cardActions.createEl("button", {
-        text: t("ui.navigate", this.plugin),
-        attr: { type: "button" }
-      });
-      navBtn.onclick = async (e) => {
-        e.stopPropagation();
-        if (!located) {
-          await this.plugin.revealUnanchored(a);
-          return;
-        }
-        await this.plugin.navigateToAnnotation(a);
-      };
       const deleteBtn = cardActions.createEl("button", {
         text: t("ui.delete", this.plugin),
         attr: { type: "button" }
@@ -476,10 +481,8 @@ export class AnnotatorSidebarView extends ItemView {
         const target = evt.target;
         if (!(target instanceof Element) || target.closest(".aa-card-actions"))
           return;
-        if (a.anchor && a.anchor !== "ok") {
-          void this.plugin.revealUnanchored(a);
+        if (a.anchor && a.anchor !== "ok")
           return;
-        }
         void this.plugin.navigateToAnnotation(a);
       });
       body.addClass("is-navigable");
