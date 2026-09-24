@@ -20,6 +20,7 @@ import {
 } from "obsidian";
 import { Decoration, EditorView } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
+import { resolveAnnotationTextRange, type TextSpan } from "./annotation-range";
 import type {
   Annotation,
   AnnotationDraft,
@@ -53,6 +54,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "openFileFirst": "Please open a file first",
     "noAnnotations": "No annotations in current file",
     "openEditableNote": "Please open an editable note first",
+    "placeCursor": "Place the cursor on a heading or body text.",
     "annotationExists": "⚠️ This area already has an annotation, please delete it first before re-highlighting",
     "annotationSaved": "✅ Annotation saved",
     "confirmDelete": "Are you sure you want to delete this annotation?",
@@ -83,7 +85,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "all": "All",
     "highlights": "Highlights",
     "notes": "Notes",
-    "emptyHint": "Select text, then right-click to highlight or add note",
+    "emptyHint": "Place the cursor on a heading or sentence, or select text, then highlight or add a note.",
     "deleteConfirm": "Delete this annotation?",
     "search": "🔍 Search",
     "export": "📤 Export",
@@ -175,6 +177,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "openFileFirst": "请先打开一个文件",
     "noAnnotations": "当前文件没有批注",
     "openEditableNote": "请先打开一个可编辑的笔记",
+    "placeCursor": "请把光标放到要批注的正文或标题上",
     "annotationExists": "⚠️ 该区域已有批注，请先删除再重新标注",
     "annotationSaved": "✅ 批注已保存",
     "confirmDelete": "确定删除这条批注？",
@@ -205,7 +208,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "all": "全部",
     "highlights": "高亮",
     "notes": "批注",
-    "emptyHint": "选中文字后，右键选择高亮或批注",
+    "emptyHint": "把光标放在标题或句子上，或先选中文字，再高亮或批注",
     "deleteConfirm": "确定删除这条批注？",
     "search": "🔍 搜索",
     "export": "📤 导出",
@@ -563,6 +566,20 @@ function formatTime(ts: number, plugin?: { settings?: { language?: string } }): 
   }
   return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+function captureMarkdownRange(editor: Editor): TextSpan | null {
+  const lines: string[] = [];
+  const lineCount = editor.lineCount();
+  for (let line = 0; line < lineCount; line++) {
+    lines.push(editor.getLine(line));
+  }
+  const cursor = editor.getCursor();
+  return resolveAnnotationTextRange(lines, cursor, {
+    text: editor.getSelection(),
+    from: editor.getCursor("from"),
+    to: editor.getCursor("to"),
+  });
+}
+
 function positionsOverlap(a: TextRange, b: TextRange): boolean {
   if (a.endLine < b.startLine || a.endLine === b.startLine && a.endCh <= b.startCh)
     return false;
@@ -1405,18 +1422,20 @@ export default class ArticleAnnotator extends Plugin {
   }
   // ==================== 高亮操作 ====================
   async highlightSelection(editor: Editor, view: { file: TFile | null }, color: string) {
-    const selection = editor.getSelection();
-    if (!selection || !view.file)
+    if (!view.file)
       return;
-    const from = editor.getCursor("from");
-    const to = editor.getCursor("to");
+    const range = captureMarkdownRange(editor);
+    if (!range) {
+      new Notice(t("notifications.placeCursor", this));
+      return;
+    }
     const existing = this.getAnnotationsForFile(view.file.path);
     const overlap = existing.some(
       (a) => isMarkdownPosition(a.position) && positionsOverlap(a.position, {
-        startLine: from.line,
-        startCh: from.ch,
-        endLine: to.line,
-        endCh: to.ch
+        startLine: range.from.line,
+        startCh: range.from.ch,
+        endLine: range.to.line,
+        endCh: range.to.ch
       })
     );
     if (overlap) {
@@ -1428,13 +1447,13 @@ export default class ArticleAnnotator extends Plugin {
       filePath: view.file.path,
       type: "highlight",
       color,
-      highlightedText: selection,
+      highlightedText: range.text,
       noteContent: "",
       position: {
-        startLine: from.line,
-        startCh: from.ch,
-        endLine: to.line,
-        endCh: to.ch
+        startLine: range.from.line,
+        startCh: range.from.ch,
+        endLine: range.to.line,
+        endCh: range.to.ch
       },
       created: Date.now(),
       updated: Date.now(),
@@ -1445,17 +1464,19 @@ export default class ArticleAnnotator extends Plugin {
   }
   // ==================== 批注操作 ====================
   async addNoteToSelection(editor: Editor, view: { file: TFile | null }) {
-    const selection = editor.getSelection();
-    if (!selection || !view.file)
+    if (!view.file)
       return;
-    const from = editor.getCursor("from");
-    const to = editor.getCursor("to");
+    const range = captureMarkdownRange(editor);
+    if (!range) {
+      new Notice(t("notifications.placeCursor", this));
+      return;
+    }
     const overlap = this.getAnnotationsForFile(view.file.path).some(
       (a) => isMarkdownPosition(a.position) && positionsOverlap(a.position, {
-        startLine: from.line,
-        startCh: from.ch,
-        endLine: to.line,
-        endCh: to.ch
+        startLine: range.from.line,
+        startCh: range.from.ch,
+        endLine: range.to.line,
+        endCh: range.to.ch
       })
     );
     if (overlap) {
@@ -1467,13 +1488,13 @@ export default class ArticleAnnotator extends Plugin {
       filePath: view.file.path,
       type: "note",
       color: this.settings.defaultColor,
-      highlightedText: selection,
+      highlightedText: range.text,
       noteContent: "",
       position: {
-        startLine: from.line,
-        startCh: from.ch,
-        endLine: to.line,
-        endCh: to.ch
+        startLine: range.from.line,
+        startCh: range.from.ch,
+        endLine: range.to.line,
+        endCh: range.to.ch
       },
       created: Date.now(),
       updated: Date.now(),
