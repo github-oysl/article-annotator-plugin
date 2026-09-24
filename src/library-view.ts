@@ -1,5 +1,5 @@
 /** 跨文件的批注列表。只列出已有批注的路径，不是文件管理器。 */
-import { ItemView, Platform, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
 import { mountAnnotationCard } from "./annotation-card";
 import {
   compareAnnotations,
@@ -13,7 +13,7 @@ import {
   type AnnotationKind
 } from "./annotation-query";
 import { mountFilterPopover } from "./filter-popover";
-import { t } from "./i18n";
+import { getColorName, t } from "./i18n";
 import type ArticleAnnotator from "./main";
 import type { Annotation } from "./types";
 
@@ -39,6 +39,7 @@ export class AnnotationLibraryView extends ItemView {
   pathKind: PathKind = "all";
   pathValue = "";
   timeRange: TimeRange = "all";
+  collapsedFolders = new Set<string>();
 
   constructor(leaf: WorkspaceLeaf, plugin: ArticleAnnotator) {
     super(leaf);
@@ -124,14 +125,18 @@ export class AnnotationLibraryView extends ItemView {
     const active = doc.activeElement;
     const searchWasFocused = active instanceof HTMLInputElement && active.classList.contains("aa-sidebar-search");
     const cursor = searchWasFocused ? active.selectionStart : null;
+    const previousNav = this.containerEl.querySelector(".aa-library-nav");
+    const navScroll = previousNav instanceof HTMLElement ? previousNav.scrollTop : 0;
     const container = this.containerEl;
     container.empty();
     container.addClass("aa-library");
     if (Platform.isMobile)
       container.addClass("is-touch");
-    const nav = container.createDiv("aa-library-nav");
+    this.renderHeader(container);
+    const body = container.createDiv("aa-library-body");
+    const nav = body.createDiv("aa-library-nav");
     this.renderNav(nav);
-    const main = container.createDiv("aa-library-main");
+    const main = body.createDiv("aa-library-main");
     const annotations = this.sourceAnnotations();
     this.renderSearch(main, annotations);
     this.renderTabs(main, annotations);
@@ -145,6 +150,18 @@ export class AnnotationLibraryView extends ItemView {
           input.setSelectionRange(cursor, cursor);
       }
     }
+    nav.scrollTop = navScroll;
+  }
+  renderHeader(container: HTMLElement) {
+    const header = container.createDiv("aa-library-header");
+    header.createEl("h3", { text: t("ui.libraryTitle", this.plugin) });
+    const closeBtn = header.createEl("button", {
+      attr: { type: "button", "aria-label": t("ui.close", this.plugin) }
+    });
+    setIcon(closeBtn, "x");
+    closeBtn.onclick = () => {
+      this.leaf.detach();
+    };
   }
   renderList() {
     const list = this.containerEl.querySelector(".aa-library-main .aa-sidebar-list");
@@ -158,6 +175,7 @@ export class AnnotationLibraryView extends ItemView {
     list.scrollTop = scrollTop;
   }
   renderNav(nav: HTMLElement) {
+    this.renderSection(nav, t("ui.navFiles", this.plugin));
     const allBtn = nav.createEl("button", {
       cls: "aa-library-path",
       text: t("ui.allFiles", this.plugin),
@@ -171,16 +189,93 @@ export class AnnotationLibraryView extends ItemView {
       this.render();
     };
     this.renderFolder(nav, buildTree(this.plugin.data), 0);
+    const tags = [...new Set(this.plugin.data.flatMap((annotation) => annotation.tags ?? []))].sort((a, b) => a.localeCompare(b));
+    if (tags.length > 0) {
+      this.renderSection(nav, t("ui.filterTag", this.plugin));
+      for (const tag of tags)
+        this.renderToggle(nav, tag, this.filter.tags.includes(tag), () => this.toggleValue("tags", tag));
+    }
+    const colors = [...new Set(this.plugin.data.map((annotation) => annotation.color))];
+    if (colors.length > 0) {
+      this.renderSection(nav, t("ui.filterColor", this.plugin));
+      const row = nav.createDiv("aa-library-colors");
+      for (const color of colors) {
+        const swatch = row.createEl("button", {
+          cls: "aa-filter-swatch",
+          attr: {
+            type: "button",
+            "aria-label": getColorName(color, this.plugin) || color,
+            "aria-pressed": this.filter.colors.includes(color) ? "true" : "false"
+          }
+        });
+        swatch.style.setProperty("--aa-accent", color);
+        if (this.filter.colors.includes(color))
+          swatch.addClass("is-selected");
+        swatch.onclick = () => this.toggleValue("colors", color);
+      }
+    }
+    this.renderSection(nav, t("ui.filterTime", this.plugin));
+    const ranges: Array<{ id: TimeRange; key: string }> = [
+      { id: "all", key: "ui.timeAll" },
+      { id: "today", key: "ui.timeToday" },
+      { id: "week", key: "ui.timeWeek" }
+    ];
+    for (const range of ranges)
+      this.renderToggle(nav, t(range.key, this.plugin), this.timeRange === range.id, () => {
+        this.timeRange = range.id;
+        this.render();
+      });
+  }
+  renderSection(nav: HTMLElement, title: string) {
+    nav.createDiv({ cls: "aa-library-section-title", text: title });
+  }
+  renderToggle(nav: HTMLElement, label: string, selected: boolean, onClick: () => void) {
+    const button = nav.createEl("button", {
+      cls: "aa-library-path",
+      text: label,
+      attr: { type: "button", "aria-pressed": selected ? "true" : "false" }
+    });
+    if (selected)
+      button.addClass("is-selected");
+    button.onclick = onClick;
+  }
+  toggleValue(key: "tags" | "colors", value: string) {
+    const selected = new Set(this.filter[key]);
+    if (selected.has(value))
+      selected.delete(value);
+    else
+      selected.add(value);
+    this.filter = { ...this.filter, [key]: [...selected] };
+    this.render();
   }
   renderFolder(parent: HTMLElement, node: FolderNode, depth: number) {
     const folders = [...node.folders].sort((a, b) => a.name.localeCompare(b.name));
     for (const folder of folders) {
-      const button = parent.createEl("button", {
+      const collapsed = this.collapsedFolders.has(folder.path);
+      const row = parent.createDiv("aa-library-folder");
+      row.style.setProperty("--aa-indent", `${8 + depth * 12}px`);
+      const twist = row.createEl("button", {
+        cls: "aa-library-twist",
+        attr: {
+          type: "button",
+          "aria-expanded": collapsed ? "false" : "true",
+          "aria-label": t(collapsed ? "ui.expandFolder" : "ui.collapseFolder", this.plugin)
+        }
+      });
+      setIcon(twist, collapsed ? "chevron-right" : "chevron-down");
+      twist.onclick = (evt) => {
+        evt.stopPropagation();
+        if (collapsed)
+          this.collapsedFolders.delete(folder.path);
+        else
+          this.collapsedFolders.add(folder.path);
+        this.render();
+      };
+      const button = row.createEl("button", {
         cls: "aa-library-path",
         text: folder.name,
         attr: { type: "button", "aria-pressed": this.pathKind === "folder" && this.pathValue === folder.path ? "true" : "false" }
       });
-      button.style.setProperty("--aa-indent", `${12 + depth * 12}px`);
       if (this.pathKind === "folder" && this.pathValue === folder.path)
         button.addClass("is-selected");
       button.onclick = () => {
@@ -188,16 +283,18 @@ export class AnnotationLibraryView extends ItemView {
         this.pathValue = folder.path;
         this.render();
       };
-      this.renderFolder(parent, folder, depth + 1);
+      if (!collapsed)
+        this.renderFolder(parent, folder, depth + 1);
     }
     const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name));
     for (const file of files) {
       const button = parent.createEl("button", {
         cls: "aa-library-path",
-        text: `${file.name} ${file.count}`,
         attr: { type: "button", "aria-pressed": this.pathKind === "file" && this.pathValue === file.path ? "true" : "false" }
       });
-      button.style.setProperty("--aa-indent", `${12 + depth * 12}px`);
+      button.style.setProperty("--aa-indent", `${28 + depth * 12}px`);
+      button.createSpan({ text: file.name });
+      button.createSpan({ cls: "aa-library-count", text: String(file.count) });
       if (this.pathKind === "file" && this.pathValue === file.path)
         button.addClass("is-selected");
       button.onclick = () => {

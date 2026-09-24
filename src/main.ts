@@ -5,6 +5,7 @@
  */
 import {
   Editor,
+  type EditorPosition,
   FileView,
   MarkdownView,
   Menu,
@@ -48,6 +49,12 @@ import { createSelectionToolbar } from "./selection-toolbar";
 import { VIEW_TYPE, AnnotatorSidebarView } from "./sidebar";
 import * as store from "./store";
 import type { Annotation, AnnotationDraft, AnnotatorSettings, HighlightGroup, PdfSelection } from "./types";
+
+interface EditorCaret {
+  editor: Editor;
+  anchor: EditorPosition;
+  head: EditorPosition;
+}
 
 /** 用原文前几个字做新笔记的文件名，去掉路径里不能出现的符号。 */
 function noteTitleFromQuote(quote: string, fallback: string): string {
@@ -295,10 +302,42 @@ export default class ArticleAnnotator extends Plugin {
     refreshHighlights(this);
   }
   editorForFile(file: TFile): Editor | null {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (view?.file?.path === file.path)
-      return view.editor;
-    return null;
+    return this.editorInFile(file.path);
+  }
+  editorInFile(filePath: string): Editor | null {
+    const active = this.app.workspace.activeEditor;
+    if (active?.file?.path === filePath && active.editor)
+      return active.editor;
+    let found: Editor | null = null;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === filePath)
+        found = view.editor;
+    });
+    return found;
+  }
+  /** 记下删除前的光标。确认框和侧栏重绘会把焦点带走。 */
+  captureCaret(editor: Editor | null): EditorCaret | null {
+    if (!editor)
+      return null;
+    return {
+      editor,
+      anchor: editor.getCursor("anchor"),
+      head: editor.getCursor("head")
+    };
+  }
+  restoreCaret(caret: EditorCaret | null) {
+    if (!caret)
+      return;
+    const apply = () => {
+      caret.editor.setSelection(caret.anchor, caret.head);
+      caret.editor.focus();
+    };
+    const win = this.app.workspace.containerEl.ownerDocument.defaultView ?? window;
+    win.requestAnimationFrame(() => {
+      apply();
+      win.setTimeout(apply, 30);
+    });
   }
   async followRenamedPath(file: TAbstractFile, oldPath: string) {
     const isFolder = file instanceof TFolder;
@@ -366,16 +405,39 @@ export default class ArticleAnnotator extends Plugin {
     modal.open();
   }
 
+  /** 批注中心和侧栏自己不拿来打开原文，避免管理页被笔记替换。 */
+  leafForAnnotation(filePath: string): WorkspaceLeaf {
+    const workspace = this.app.workspace;
+    const blocked = new Set([VIEW_TYPE, VIEW_TYPE_LIBRARY]);
+    let opened: WorkspaceLeaf | null = null;
+    let fallback: WorkspaceLeaf | null = null;
+    workspace.iterateAllLeaves((leaf) => {
+      if (blocked.has(leaf.view.getViewType()))
+        return;
+      const view = leaf.view;
+      if (!opened && view instanceof FileView && view.file?.path === filePath)
+        opened = leaf;
+      else if (!fallback)
+        fallback = leaf;
+    });
+    if (opened)
+      return opened;
+    const active = workspace.getLeaf(false);
+    if (active && !blocked.has(active.view.getViewType()))
+      return active;
+    if (fallback)
+      return fallback;
+    return workspace.getLeaf("split", "vertical");
+  }
   async navigateToAnnotation(annotation: Annotation) {
     const file = this.app.vault.getAbstractFileByPath(annotation.filePath);
     if (!(file instanceof TFile)) {
       new Notice(t("notifications.fileNotFound", this));
       return;
     }
-    const leaf = this.app.workspace.getLeaf(false);
-    if (!leaf)
-      return;
+    const leaf = this.leafForAnnotation(annotation.filePath);
     await leaf.openFile(file);
+    this.app.workspace.revealLeaf(leaf);
     if (annotation.fileType === "pdf") {
       setTimeout(() => this.jumpToPdfAnnotation(annotation), 220);
       return;
@@ -565,7 +627,9 @@ export default class ArticleAnnotator extends Plugin {
       await this.revealUnanchored(found);
       return;
     }
+    const caret = this.captureCaret(editor);
     await this.removeAnnotation(found.id, true);
+    this.restoreCaret(caret);
     new Notice(t("notifications.annotationDeleted", this));
   }
   async reassignAnnotation(annotation: Annotation) {

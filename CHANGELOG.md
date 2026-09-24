@@ -2,6 +2,17 @@
 
 All notable changes to this plugin will be documented in this file.
 
+## [0.2.6] - 2026-09-24
+
+### Changed
+- 批注中心补上标题，文件夹可折叠，左侧可按标签、颜色和时间筛选
+- 在批注中心点卡片会在旁边打开原文，管理页留在原地
+- 手动删除批注后，编辑器光标回到删除前的位置
+
+### Release
+- Tag: `0.2.6`（无 v 前缀）
+- Assets: `main.js`, `manifest.json`, `styles.css`
+
 ## [0.2.5] - 2026-09-24
 
 ### Changed

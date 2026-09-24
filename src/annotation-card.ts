@@ -207,10 +207,12 @@ function openColorMenu(plugin: ArticleAnnotator, annotation: Annotation, evt: Mo
 
 async function deleteAnnotation(plugin: ArticleAnnotator, annotation: Annotation, anchor: HTMLElement, onChanged: () => void) {
   const win = anchor.ownerDocument.defaultView;
+  const caret = plugin.captureCaret(plugin.editorInFile(annotation.filePath));
   if (!win?.confirm(t("ui.deleteConfirm", plugin)))
     return;
   await plugin.removeAnnotation(annotation.id, true);
   onChanged();
+  plugin.restoreCaret(caret);
 }
 
 function showAddTagDialog(plugin: ArticleAnnotator, annotation: Annotation, onChanged: () => void) {
