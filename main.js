@@ -44,6 +44,16 @@ function createAnnotationHistoryExtension(apply) {
         if (!effect.is(annotationHistoryEffect)) {
           continue;
         }
+        if (effect.value.type === "update" && effect.value.previous) {
+          inverted.push(annotationHistoryEffect.of({
+            type: "update",
+            annotation: effect.value.previous,
+            previous: effect.value.annotation
+          }));
+          continue;
+        }
+        if (effect.value.type === "update")
+          continue;
         inverted.push(annotationHistoryEffect.of({
           type: effect.value.type === "add" ? "remove" : "add",
           annotation: effect.value.annotation
@@ -68,8 +78,9 @@ function createAnnotationHistoryExtension(apply) {
 }
 function dispatchAnnotationHistory(view, op) {
   const snapshot = JSON.parse(JSON.stringify(op.annotation));
+  const previous = op.previous ? JSON.parse(JSON.stringify(op.previous)) : void 0;
   view.dispatch({
-    effects: annotationHistoryEffect.of({ type: op.type, annotation: snapshot }),
+    effects: annotationHistoryEffect.of({ type: op.type, annotation: snapshot, previous }),
     annotations: import_commands.isolateHistory.of("full")
   });
 }
@@ -506,7 +517,10 @@ var LANGUAGES = {
       "searchAnnotations": "Search all annotations",
       "clearFileAnnotations": "Clear current file annotations",
       "mobileHighlight": "Highlight current selection (default color)",
-      "mobileAddNote": "Add note to current selection"
+      "mobileAddNote": "Add note to current selection",
+      "locateAtCursor": "Locate annotation at cursor",
+      "editAtCursor": "Edit annotation at cursor",
+      "deleteAtCursor": "Delete annotation at cursor"
     },
     "notifications": {
       "pluginLoaded": "\u{1F4DD} Article Annotator loaded",
@@ -529,7 +543,10 @@ var LANGUAGES = {
       "customColorSaved": "\u2705 Custom color saved",
       "customColorCleared": "\u2705 Custom color cleared",
       "customColorNameSaved": "\u2705 Custom color name saved",
-      "fileCleared": "\u{1F5D1}\uFE0F Cleared ${n} annotations"
+      "fileCleared": "\u{1F5D1}\uFE0F Cleared ${n} annotations",
+      "cursorMiss": "No annotation or highlight at the cursor",
+      "annotationDeleted": "Deleted. Undo to restore it",
+      "annotationLocated": "Located this annotation"
     },
     "ui": {
       "highlight": "Highlight",
@@ -604,7 +621,7 @@ var LANGUAGES = {
       "shortcutsHint": "\u{1F4A1} Set shortcuts in Obsidian Settings \u2192 Hotkeys",
       "notBound": "not bound",
       "readingModeNotice": "Note: Annotations are not visible in Reading mode. Please switch to Editing mode to view highlights.",
-      "aboutText": "Article Annotator 0.2.3 \u2014 Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n\u{1F4A1} Custom highlight color uses hex code (e.g., #FCD34D)."
+      "aboutText": "Article Annotator 0.2.4 \u2014 Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n\u{1F4A1} Custom highlight color uses hex code (e.g., #FCD34D)."
     },
     "colorNames": {
       "#FCD34D": "Warm Yellow",
@@ -641,7 +658,10 @@ var LANGUAGES = {
       "searchAnnotations": "\u641C\u7D22\u5168\u90E8\u6279\u6CE8",
       "clearFileAnnotations": "\u6E05\u7A7A\u5F53\u524D\u6587\u4EF6\u6279\u6CE8",
       "mobileHighlight": "\u9AD8\u4EAE\u5F53\u524D\u9009\u4E2D\uFF08\u9ED8\u8BA4\u989C\u8272\uFF09",
-      "mobileAddNote": "\u7ED9\u5F53\u524D\u9009\u4E2D\u5199\u6279\u6CE8"
+      "mobileAddNote": "\u7ED9\u5F53\u524D\u9009\u4E2D\u5199\u6279\u6CE8",
+      "locateAtCursor": "\u5B9A\u4F4D\u5149\u6807\u5904\u7684\u6279\u6CE8\u6216\u9AD8\u4EAE",
+      "editAtCursor": "\u7F16\u8F91\u5149\u6807\u5904\u7684\u6279\u6CE8\u6216\u9AD8\u4EAE",
+      "deleteAtCursor": "\u5220\u9664\u5149\u6807\u5904\u7684\u6279\u6CE8\u6216\u9AD8\u4EAE"
     },
     "notifications": {
       "pluginLoaded": "\u{1F4DD} \u6587\u7AE0\u6279\u6CE8\u5DF2\u52A0\u8F7D",
@@ -664,7 +684,10 @@ var LANGUAGES = {
       "customColorSaved": "\u2705 \u81EA\u5B9A\u4E49\u989C\u8272\u5DF2\u4FDD\u5B58",
       "customColorCleared": "\u2705 \u81EA\u5B9A\u4E49\u989C\u8272\u5DF2\u6E05\u7A7A",
       "customColorNameSaved": "\u2705 \u81EA\u5B9A\u4E49\u989C\u8272\u540D\u79F0\u5DF2\u4FDD\u5B58",
-      "fileCleared": "\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A ${n} \u6761\u6279\u6CE8"
+      "fileCleared": "\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A ${n} \u6761\u6279\u6CE8",
+      "cursorMiss": "\u5149\u6807\u5904\u6CA1\u6709\u6279\u6CE8\u6216\u9AD8\u4EAE",
+      "annotationDeleted": "\u5DF2\u5220\u9664\uFF0C\u64A4\u9500\u53EF\u6062\u590D",
+      "annotationLocated": "\u5DF2\u5B9A\u4F4D\u5230\u8FD9\u6761\u6279\u6CE8"
     },
     "ui": {
       "highlight": "\u9AD8\u4EAE",
@@ -739,7 +762,7 @@ var LANGUAGES = {
       "shortcutsHint": "\u{1F4A1} \u53EF\u5728 Obsidian \u8BBE\u7F6E \u2192 \u5FEB\u6377\u952E \u4E2D\u4E3A\u4E0A\u8FF0\u547D\u4EE4\u7ED1\u5B9A\u5FEB\u6377\u952E",
       "notBound": "\u672A\u7ED1\u5B9A",
       "readingModeNotice": "\u8BF4\u660E\uFF1A\u9605\u8BFB\u6A21\u5F0F\u5F53\u524D\u4E0D\u663E\u793A\u6279\u6CE8\u9AD8\u4EAE\uFF0C\u8BF7\u5728\u7F16\u8F91\u6A21\u5F0F\u4E0B\u67E5\u770B\u9AD8\u4EAE\u3002",
-      "aboutText": "\u6587\u7AE0\u6279\u6CE8 0.2.3 \u2014 \u53C2\u8003 Microsoft Word \u6279\u6CE8\u8BBE\u8BA1\u3002\u6240\u6709\u6279\u6CE8\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E0D\u4FEE\u6539\u539F\u6587\u3002\u5F53\u524D\u5DF2\u652F\u6301\u7535\u8111\u3001iPad\u3001\u624B\u673A\u4E09\u7AEF\u540C\u6B65\uFF0C\u9700\u786E\u4FDD\u77E5\u8BC6\u5E93\u540C\u6B65\u6587\u4EF6 <strong><code>article-annotator/annotations.json</code></strong>\u3002\n\n\u{1F4A1} \u81EA\u5B9A\u4E49\u9AD8\u4EAE\u989C\u8272\u4F7F\u7528\u5341\u516D\u8FDB\u5236\u4EE3\u7801\uFF08\u5982 #FCD34D\uFF09\u3002"
+      "aboutText": "\u6587\u7AE0\u6279\u6CE8 0.2.4 \u2014 \u53C2\u8003 Microsoft Word \u6279\u6CE8\u8BBE\u8BA1\u3002\u6240\u6709\u6279\u6CE8\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E0D\u4FEE\u6539\u539F\u6587\u3002\u5F53\u524D\u5DF2\u652F\u6301\u7535\u8111\u3001iPad\u3001\u624B\u673A\u4E09\u7AEF\u540C\u6B65\uFF0C\u9700\u786E\u4FDD\u77E5\u8BC6\u5E93\u540C\u6B65\u6587\u4EF6 <strong><code>article-annotator/annotations.json</code></strong>\u3002\n\n\u{1F4A1} \u81EA\u5B9A\u4E49\u9AD8\u4EAE\u989C\u8272\u4F7F\u7528\u5341\u516D\u8FDB\u5236\u4EE3\u7801\uFF08\u5982 #FCD34D\uFF09\u3002"
     },
     "colorNames": {
       "#FCD34D": "\u6696\u9EC4",
@@ -971,6 +994,47 @@ function positionsOverlap(a, b) {
   if (a.startLine > b.endLine || a.startLine === b.endLine && a.startCh >= b.endCh)
     return false;
   return true;
+}
+function isBefore(line, ch, otherLine, otherCh) {
+  return line < otherLine || line === otherLine && ch < otherCh;
+}
+function cursorTouchesRange(position, line, ch) {
+  if (isBefore(line, ch, position.startLine, position.startCh))
+    return false;
+  if (isBefore(position.endLine, position.endCh, line, ch))
+    return false;
+  return true;
+}
+function spanRank(position) {
+  return (position.endLine - position.startLine) * 1e5 + Math.max(0, position.endCh - position.startCh);
+}
+function findMarkdownAnnotationAtCursor(annotations, editor) {
+  const cursor = editor.getCursor();
+  const from = editor.getCursor("from");
+  const to = editor.getCursor("to");
+  const hasSelection = editor.getSelection().length > 0;
+  const selection = {
+    startLine: from.line,
+    startCh: from.ch,
+    endLine: to.line,
+    endCh: to.ch
+  };
+  const hits = annotations.filter((annotation) => {
+    if (annotation.fileType === "pdf" || !isMarkdownPosition(annotation.position))
+      return false;
+    if (hasSelection)
+      return positionsOverlap(annotation.position, selection);
+    return cursorTouchesRange(annotation.position, cursor.line, cursor.ch);
+  });
+  hits.sort((a, b) => {
+    if (!isMarkdownPosition(a.position) || !isMarkdownPosition(b.position))
+      return 0;
+    const rank = spanRank(a.position) - spanRank(b.position);
+    if (rank !== 0)
+      return rank;
+    return b.updated - a.updated;
+  });
+  return hits[0] ?? null;
 }
 function validateHexColor(hex) {
   if (!hex || typeof hex !== "string") return false;
@@ -1797,7 +1861,10 @@ var AnnotatorSettingTab = class extends import_obsidian6.PluginSettingTab {
       ["search-annotations", "commands.searchAnnotations"],
       ["clear-file-annotations", "commands.clearFileAnnotations"],
       ["mobile-highlight-default-color", "commands.mobileHighlight"],
-      ["mobile-add-note-to-selection", "commands.mobileAddNote"]
+      ["mobile-add-note-to-selection", "commands.mobileAddNote"],
+      ["locate-annotation-at-cursor", "commands.locateAtCursor"],
+      ["edit-annotation-at-cursor", "commands.editAtCursor"],
+      ["delete-annotation-at-cursor", "commands.deleteAtCursor"]
     ];
     let stored = {};
     try {
@@ -2544,7 +2611,7 @@ async function removeAnnotation(plugin, id, recordHistory = false) {
   if (recordHistory && target)
     plugin.pushAnnotationHistory("remove", target);
 }
-function pushAnnotationHistory(plugin, type, annotation) {
+function pushAnnotationHistory(plugin, type, annotation, previous) {
   if (annotation.fileType === "pdf")
     return;
   const view = plugin.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
@@ -2553,9 +2620,27 @@ function pushAnnotationHistory(plugin, type, annotation) {
   const cm = getCodeMirror(view.editor);
   if (!cm)
     return;
-  dispatchAnnotationHistory(cm, { type, annotation });
+  dispatchAnnotationHistory(cm, { type, annotation, previous });
+}
+async function replaceAnnotationSnapshot(plugin, annotation) {
+  const idx = plugin.data.findIndex((item) => item.id === annotation.id);
+  if (idx === -1) {
+    await addAnnotation(plugin, annotation);
+    return;
+  }
+  plugin.data[idx] = annotation;
+  await plugin.saveAnnotations();
+  if (plugin.sidebarView)
+    plugin.sidebarView.update(plugin.activeFile);
+  refreshHighlights(plugin);
+  if (annotation.fileType === "pdf")
+    plugin.schedulePdfRender(annotation.filePath, 60);
 }
 async function applyAnnotationHistory(plugin, op) {
+  if (op.type === "update") {
+    await replaceAnnotationSnapshot(plugin, op.annotation);
+    return;
+  }
   if (op.type === "remove") {
     if (!plugin.data.some((item) => item.id === op.annotation.id))
       return;
@@ -2712,8 +2797,8 @@ var ArticleAnnotator = class extends import_obsidian9.Plugin {
     });
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor, view) => {
-        const selection = editor.getSelection();
-        if (!selection)
+        this.addCursorAnnotationMenuItems(menu, editor, view);
+        if (!editor.getSelection())
           return;
         this.addAnnotationMenuItems(menu, editor, view);
       })
@@ -2771,6 +2856,27 @@ var ArticleAnnotator = class extends import_obsidian9.Plugin {
       name: t("commands.mobileAddNote", this),
       editorCallback: async (editor, view) => {
         await this.addNoteToSelection(editor, view);
+      }
+    });
+    this.addCommand({
+      id: "locate-annotation-at-cursor",
+      name: t("commands.locateAtCursor", this),
+      editorCallback: async (editor, view) => {
+        await this.locateAnnotationAtCursor(editor, view);
+      }
+    });
+    this.addCommand({
+      id: "edit-annotation-at-cursor",
+      name: t("commands.editAtCursor", this),
+      editorCallback: (editor, view) => {
+        this.editAnnotationAtCursor(editor, view);
+      }
+    });
+    this.addCommand({
+      id: "delete-annotation-at-cursor",
+      name: t("commands.deleteAtCursor", this),
+      editorCallback: async (editor, view) => {
+        await this.deleteAnnotationAtCursor(editor, view);
       }
     });
     this.addSettingTab(new AnnotatorSettingTab(this.app, this));
@@ -2956,6 +3062,96 @@ var ArticleAnnotator = class extends import_obsidian9.Plugin {
     if (leaf) {
       workspace.revealLeaf(leaf);
     }
+  }
+  // ==================== 光标处的旧批注 ====================
+  annotationAtCursor(editor, view) {
+    if (!view.file)
+      return null;
+    return findMarkdownAnnotationAtCursor(this.getAnnotationsForFile(view.file.path), editor);
+  }
+  /** 选中这条批注的原文，并让侧边栏滚到对应卡片。 */
+  selectAnnotationRange(editor, annotation) {
+    if (!isMarkdownPosition(annotation.position))
+      return;
+    const position = annotation.position;
+    const from = { line: position.startLine, ch: position.startCh };
+    const to = { line: position.endLine, ch: position.endCh };
+    editor.setSelection(from, to);
+    editor.scrollIntoView({ from, to }, true);
+    this.sidebarView?.scrollToCard(annotation.id);
+  }
+  async locateAnnotationAtCursor(editor, view) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found) {
+      new import_obsidian9.Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    this.selectAnnotationRange(editor, found);
+    await this.activateSidebar();
+    this.selectAnnotationRange(editor, found);
+    new import_obsidian9.Notice(t("notifications.annotationLocated", this));
+  }
+  editAnnotationAtCursor(editor, view) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found) {
+      new import_obsidian9.Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    this.selectAnnotationRange(editor, found);
+    this.openNoteEditor(found);
+  }
+  async deleteAnnotationAtCursor(editor, view) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found) {
+      new import_obsidian9.Notice(t("notifications.cursorMiss", this));
+      return;
+    }
+    await this.removeAnnotation(found.id, true);
+    new import_obsidian9.Notice(t("notifications.annotationDeleted", this));
+  }
+  /** 修改已有批注或高亮的颜色和文字，不新建一条。 */
+  openNoteEditor(existing) {
+    const modal = new NoteModal(this.app, this, {
+      highlightedText: existing.highlightedText,
+      color: existing.color,
+      noteContent: existing.noteContent
+    }, async (content, color) => {
+      const current = this.data.find((item) => item.id === existing.id);
+      if (!current)
+        return;
+      const before = JSON.parse(JSON.stringify(current));
+      const noteContent = content.trim();
+      await this.updateAnnotation(existing.id, {
+        noteContent,
+        color,
+        type: noteContent ? "note" : "highlight"
+      });
+      const next = this.data.find((item) => item.id === existing.id);
+      if (!next)
+        return;
+      if (next.noteContent !== before.noteContent || next.color !== before.color || next.type !== before.type)
+        this.pushAnnotationHistory("update", next, before);
+      new import_obsidian9.Notice(t("notifications.annotationSaved", this));
+    });
+    modal.open();
+  }
+  addCursorAnnotationMenuItems(menu, editor, view) {
+    const found = this.annotationAtCursor(editor, view);
+    if (!found)
+      return;
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setIcon("pencil");
+      item.setTitle(t("commands.editAtCursor", this));
+      item.onClick(() => this.editAnnotationAtCursor(editor, view));
+    });
+    menu.addItem((item) => {
+      item.setIcon("trash");
+      item.setTitle(t("commands.deleteAtCursor", this));
+      item.onClick(() => {
+        void this.deleteAnnotationAtCursor(editor, view);
+      });
+    });
   }
   // ==================== 右键菜单 ====================
   addAnnotationMenuItems(menu, editor, view) {
@@ -3260,8 +3456,8 @@ var ArticleAnnotator = class extends import_obsidian9.Plugin {
   async removeAnnotation(id, recordHistory = false) {
     return removeAnnotation(this, id, recordHistory);
   }
-  pushAnnotationHistory(type, annotation) {
-    return pushAnnotationHistory(this, type, annotation);
+  pushAnnotationHistory(type, annotation, previous) {
+    return pushAnnotationHistory(this, type, annotation, previous);
   }
   async applyAnnotationHistory(op) {
     return applyAnnotationHistory(this, op);
