@@ -141,7 +141,7 @@ export interface AnnotationStoreData {
 
 export const DEFAULT_SETTINGS: AnnotatorSettings = {
   defaultColor: "#FCD34D",
-  colors: ["#FCD34D", "#FBBF24", "#F97316", "#EF4444", "#8B5CF6", "#06B6D4"],
+  colors: ["#FCD34D", "#34D399", "#60A5FA", "#8B5CF6"],
   customHighlightColor: "",
   customHighlightColorName: "自定义",
   language: "zh"

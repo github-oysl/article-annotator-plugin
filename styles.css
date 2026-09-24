@@ -542,6 +542,17 @@
   margin-top: 6px;
 }
 
+/* 批注中心的卡片额外显示来源文件路径 */
+.aa-card-file {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .aa-card-meta {
   display: flex;
   align-items: center;
@@ -958,6 +969,33 @@
   min-height: 24px;
 }
 
+/* 标签行末尾的圆形 ＋ 按钮，点击后切换为输入框 */
+.aa-note-tag-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.aa-note-tag-add:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+.aa-note-tag-add:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
 .aa-note-tags input {
   flex: 1 1 120px;
   min-width: 0;
@@ -978,7 +1016,29 @@
 }
 
 .aa-note-modal {
-  padding: 8px 0;
+  padding: 12px 14px 10px;
+}
+
+/* 浮动批注面板：遮罩透明不拦截点击，面板自身 fixed 定位在选区附近。 */
+.modal-container.aa-note-popover {
+  background: transparent;
+  pointer-events: none;
+}
+
+.modal-container.aa-note-popover .modal {
+  pointer-events: auto;
+  position: fixed;
+  margin: 0;
+  max-width: none;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-l);
+}
+
+.modal-container.aa-note-popover .modal-title:empty {
+  display: none;
 }
 
 .aa-note-modal h3 {
@@ -988,20 +1048,17 @@
   color: var(--text-normal);
 }
 
+/* 引用文本：当前高亮颜色的淡色底 + 左侧色条 */
 .aa-note-modal-quote {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--aa-quote-accent, var(--interactive-accent)) 12%, transparent) 0%, transparent 55%),
-    var(--background-secondary);
-  padding: 10px 14px;
-  border-radius: 12px;
+  background: color-mix(in srgb, var(--aa-quote-accent, var(--interactive-accent)) 14%, transparent);
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
   border-left: 3px solid var(--aa-quote-accent, var(--interactive-accent));
-  font-style: italic;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-muted);
   word-break: break-word;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .aa-note-modal-quote p {
@@ -1012,8 +1069,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 10px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -1053,24 +1110,23 @@ button.aa-color-swatch {
 
 .aa-note-modal textarea {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, var(--interactive-accent) 20%);
-  background: color-mix(in srgb, var(--background-primary) 96%, #ffffff 4%);
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  border: none;
+  background: var(--background-secondary);
   color: var(--text-normal);
   font-size: 13px;
   line-height: 1.7;
   resize: vertical;
-  min-height: 132px;
+  min-height: 88px;
   font-family: inherit;
   box-sizing: border-box;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 8px rgba(0,0,0,0.04);
+  outline: none;
 }
 
 .aa-note-modal textarea:focus {
   outline: none;
-  border-color: var(--interactive-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent-hover) 35%, transparent 65%);
+  background: color-mix(in srgb, var(--background-secondary) 88%, var(--interactive-accent) 12%);
 }
 
 .aa-modal-buttons {

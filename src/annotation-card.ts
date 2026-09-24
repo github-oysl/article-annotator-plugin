@@ -28,7 +28,7 @@ function showMenu(menu: Menu, evt: Event, anchor: HTMLElement) {
   menu.showAtPosition({ x: rect.left, y: rect.bottom, width: rect.width }, anchor.ownerDocument);
 }
 
-export function mountAnnotationCard(container: HTMLElement, annotation: Annotation, plugin: ArticleAnnotator, onChanged: () => void): HTMLElement {
+export function mountAnnotationCard(container: HTMLElement, annotation: Annotation, plugin: ArticleAnnotator, onChanged: () => void, options?: { showFilePath?: boolean }): HTMLElement {
   const card = container.createDiv("aa-card");
   card.addClass("aa-reading-card");
   card.dataset.annotationId = annotation.id;
@@ -71,6 +71,8 @@ export function mountAnnotationCard(container: HTMLElement, annotation: Annotati
     card.createDiv({ cls: "aa-card-line", text: annotation.filePath });
   else if (!located)
     card.createDiv({ cls: "aa-card-edit-hint", text: t("ui.reassignHint", plugin) });
+  if (options?.showFilePath)
+    card.createDiv({ cls: "aa-card-file", text: annotation.filePath });
   const meta = card.createDiv("aa-card-meta");
   const location = compactLocation(annotation);
   const when = formatTime(annotation.created, plugin);

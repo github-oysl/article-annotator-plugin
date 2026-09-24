@@ -25,6 +25,7 @@ type TimeRange = "all" | "today" | "week";
 interface FolderNode {
   name: string;
   path: string;
+  count: number;
   folders: FolderNode[];
   files: Array<{ name: string; path: string; count: number }>;
 }
@@ -183,9 +184,10 @@ export class AnnotationLibraryView extends ItemView {
     this.renderSection(nav, t("ui.navFiles", this.plugin));
     const allBtn = nav.createEl("button", {
       cls: "aa-library-path",
-      text: t("ui.allFiles", this.plugin),
       attr: { type: "button", "aria-pressed": this.pathKind === "all" ? "true" : "false" }
     });
+    allBtn.createSpan({ text: t("ui.allFiles", this.plugin) });
+    allBtn.createSpan({ cls: "aa-library-count", text: String(this.plugin.data.length) });
     if (this.pathKind === "all")
       allBtn.addClass("is-selected");
     allBtn.onclick = () => {
@@ -278,9 +280,10 @@ export class AnnotationLibraryView extends ItemView {
       };
       const button = row.createEl("button", {
         cls: "aa-library-path",
-        text: folder.name,
         attr: { type: "button", "aria-pressed": this.pathKind === "folder" && this.pathValue === folder.path ? "true" : "false" }
       });
+      button.createSpan({ text: folder.name });
+      button.createSpan({ cls: "aa-library-count", text: String(folder.count) });
       if (this.pathKind === "folder" && this.pathValue === folder.path)
         button.addClass("is-selected");
       button.onclick = () => {
@@ -439,12 +442,12 @@ export class AnnotationLibraryView extends ItemView {
       };
       return;
     }
-    visible.forEach((annotation) => mountAnnotationCard(list, annotation, this.plugin, () => this.render()));
+    visible.forEach((annotation) => mountAnnotationCard(list, annotation, this.plugin, () => this.render(), { showFilePath: true }));
   }
 }
 
 function buildTree(annotations: readonly Annotation[]): FolderNode {
-  const root: FolderNode = { name: "", path: "", folders: [], files: [] };
+  const root: FolderNode = { name: "", path: "", count: 0, folders: [], files: [] };
   const counts = new Map<string, number>();
   for (const annotation of annotations)
     counts.set(annotation.filePath, (counts.get(annotation.filePath) ?? 0) + 1);
@@ -457,12 +460,18 @@ function buildTree(annotations: readonly Annotation[]): FolderNode {
       path = path ? `${path}/${part}` : part;
       let child = node.folders.find((folder) => folder.name === part);
       if (!child) {
-        child = { name: part, path, folders: [], files: [] };
+        child = { name: part, path, count: 0, folders: [], files: [] };
         node.folders.push(child);
       }
       node = child;
     }
     node.files.push({ name: fileName, path: filePath, count });
   }
+  // 自下而上汇总文件夹计数（含子孙文件）
+  const rollup = (node: FolderNode): number => {
+    node.count = node.files.reduce((sum, file) => sum + file.count, 0) + node.folders.reduce((sum, folder) => sum + rollup(folder), 0);
+    return node.count;
+  };
+  rollup(root);
   return root;
 }

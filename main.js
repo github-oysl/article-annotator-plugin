@@ -630,10 +630,12 @@ var LANGUAGES = {
     },
     "colorNames": {
       "#FCD34D": "Warm Yellow",
+      "#34D399": "Green",
+      "#60A5FA": "Blue",
+      "#8B5CF6": "Purple",
       "#FBBF24": "Amber",
       "#F97316": "Orange",
       "#EF4444": "Red",
-      "#8B5CF6": "Purple",
       "#06B6D4": "Cyan"
     },
     "time": {
@@ -830,10 +832,12 @@ var LANGUAGES = {
     },
     "colorNames": {
       "#FCD34D": "\u6696\u9EC4",
+      "#34D399": "\u7FE0\u7EFF",
+      "#60A5FA": "\u851A\u84DD",
+      "#8B5CF6": "\u7D2B\u8272",
       "#FBBF24": "\u7425\u73C0",
       "#F97316": "\u6A59\u8272",
       "#EF4444": "\u8D64\u7EA2",
-      "#8B5CF6": "\u7D2B\u8272",
       "#06B6D4": "\u9752\u8272"
     },
     "time": {
@@ -1038,7 +1042,7 @@ function getAnnotationLocationLabel(annotation, plugin) {
 }
 var DEFAULT_SETTINGS = {
   defaultColor: "#FCD34D",
-  colors: ["#FCD34D", "#FBBF24", "#F97316", "#EF4444", "#8B5CF6", "#06B6D4"],
+  colors: ["#FCD34D", "#34D399", "#60A5FA", "#8B5CF6"],
   customHighlightColor: "",
   customHighlightColorName: "\u81EA\u5B9A\u4E49",
   language: "zh"
@@ -1532,6 +1536,11 @@ var NoteModal = class extends import_obsidian3.Modal {
     this.draftContent = "";
     this.tags = [];
     this.tagRow = null;
+    this.tagInputVisible = false;
+    /** 编辑已有批注时没有选区，直接居中显示。 */
+    this.centerOnScreen = false;
+    /** 点击面板外部时挂的监听，关闭时移除。 */
+    this.outsideHandler = null;
     /** save：按钮或快捷键；discard：取消或 Esc；implicit：点遮罩或标题栏关闭。 */
     this.closeReason = "implicit";
     this.settled = false;
@@ -1540,18 +1549,18 @@ var NoteModal = class extends import_obsidian3.Modal {
     this.color = seed.color;
     this.draftContent = seed.noteContent || "";
     this.tags = [...seed.tags ?? []];
+    this.centerOnScreen = seed.center ?? false;
     this.onSave = onSave;
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("aa-note-modal");
-    this.setTitle(t("ui.noteComposerTitle", this.plugin));
+    this.containerEl.addClass("aa-note-popover");
     const quoteBlock = contentEl.createDiv("aa-note-modal-quote");
     quoteBlock.createEl("p", { text: this.highlightedText });
     quoteBlock.style.setProperty("--aa-quote-accent", this.color);
     const colorRow = contentEl.createDiv("aa-note-modal-colors");
-    colorRow.createEl("span", { text: t("ui.color", this.plugin) });
     this.colorChoices().forEach((color) => {
       const swatch = colorRow.createEl("button", {
         cls: "aa-color-swatch",
@@ -1577,35 +1586,83 @@ var NoteModal = class extends import_obsidian3.Modal {
       };
     });
     this.tagRow = contentEl.createDiv("aa-note-tags");
-    this.renderTags();
     const textarea = contentEl.createEl("textarea", {
-      attr: { placeholder: t("ui.placeholder", this.plugin), rows: "8" }
+      attr: { placeholder: t("ui.placeholder", this.plugin), rows: "4" }
     });
     textarea.value = this.draftContent;
     this.textarea = textarea;
     textarea.addEventListener("input", () => {
       this.draftContent = textarea.value;
     });
-    const hint = contentEl.createDiv("aa-note-modal-hint");
-    hint.setText(t("ui.saveHint", this.plugin).replace("${shortcut}", chordLabel()));
+    this.renderTags();
     const btnRow = contentEl.createDiv("aa-modal-buttons");
-    const saveBtn = btnRow.createEl("button", {
-      text: `${t("ui.saveAction", this.plugin)} \xB7 ${chordLabel()}`,
-      attr: { type: "button" }
-    });
-    saveBtn.addClass("aa-button");
-    saveBtn.addClass("aa-button-primary");
     const cancelBtn = btnRow.createEl("button", {
       text: t("ui.cancel", this.plugin),
       attr: { type: "button" }
     });
     cancelBtn.addClass("aa-button");
     cancelBtn.addClass("aa-button-secondary");
+    const saveBtn = btnRow.createEl("button", {
+      text: `${t("ui.saveAction", this.plugin)} \xB7 ${chordLabel()}`,
+      attr: { type: "button" }
+    });
+    saveBtn.addClass("aa-button");
+    saveBtn.addClass("aa-button-primary");
     saveBtn.onclick = () => this.requestSave();
     cancelBtn.onclick = () => this.requestDiscard();
     this.bindSaveKeys();
+    this.placeNearSelection();
+    this.attachOutsideDismiss();
     const ownerWindow = this.containerEl.ownerDocument.defaultView ?? window;
     ownerWindow.setTimeout(() => textarea.focus(), 30);
+  }
+  /** 把面板放到当前选区下方；拿不到选区（编辑已有批注等）就居中偏上。 */
+  placeNearSelection() {
+    const doc = this.containerEl.ownerDocument;
+    const win = doc.defaultView;
+    if (!win)
+      return;
+    this.modalEl.addClass("aa-note-popover-panel");
+    const width = Math.min(420, win.innerWidth - 16);
+    this.modalEl.style.width = `${width}px`;
+    let rect = null;
+    if (!this.centerOnScreen) {
+      const sel = doc.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const rangeRect = sel.getRangeAt(0).getBoundingClientRect();
+        if (rangeRect.width > 0 || rangeRect.height > 0)
+          rect = rangeRect;
+      }
+    }
+    const height = this.modalEl.offsetHeight;
+    let top;
+    let left;
+    if (rect) {
+      top = rect.bottom + 8;
+      if (top + height > win.innerHeight - 8)
+        top = Math.max(8, rect.top - height - 8);
+      left = rect.left + rect.width / 2 - width / 2;
+    } else {
+      top = Math.max(8, win.innerHeight * 0.15);
+      left = win.innerWidth / 2 - width / 2;
+    }
+    left = Math.min(Math.max(8, left), win.innerWidth - width - 8);
+    this.modalEl.style.top = `${Math.round(top)}px`;
+    this.modalEl.style.left = `${Math.round(left)}px`;
+  }
+  /** 点击面板外视为隐式关闭（有内容时保存），等价于原来点遮罩的行为。 */
+  attachOutsideDismiss() {
+    const doc = this.containerEl.ownerDocument;
+    this.outsideHandler = (evt) => {
+      const target = evt.target;
+      if (!(target instanceof Node))
+        return;
+      if (this.containerEl.contains(target))
+        return;
+      this.closeReason = "implicit";
+      this.close();
+    };
+    doc.addEventListener("pointerdown", this.outsideHandler);
   }
   renderTags() {
     const row = this.tagRow;
@@ -1624,20 +1681,39 @@ var NoteModal = class extends import_obsidian3.Modal {
         this.renderTags();
       };
     });
-    const input = row.createEl("input", {
-      attr: { type: "text", placeholder: t("ui.tagName", this.plugin), "aria-label": t("ui.addTag", this.plugin) }
+    if (this.tagInputVisible) {
+      const input = row.createEl("input", {
+        attr: { type: "text", placeholder: t("ui.tagName", this.plugin), "aria-label": t("ui.addTag", this.plugin) }
+      });
+      const commit = () => {
+        const tag = input.value.trim();
+        if (tag && !this.tags.includes(tag))
+          this.tags.push(tag);
+        this.tagInputVisible = false;
+        this.renderTags();
+      };
+      input.addEventListener("keydown", (evt) => {
+        if (evt.key !== "Enter" || evt.ctrlKey || evt.metaKey || evt.isComposing)
+          return;
+        evt.preventDefault();
+        evt.stopPropagation();
+        commit();
+      });
+      input.addEventListener("blur", () => {
+        commit();
+      });
+      input.focus();
+      return;
+    }
+    const addBtn = row.createEl("button", {
+      cls: "aa-note-tag-add",
+      text: "+",
+      attr: { type: "button", "aria-label": t("ui.addTag", this.plugin) }
     });
-    input.addEventListener("keydown", (evt) => {
-      if (evt.key !== "Enter" || evt.ctrlKey || evt.metaKey || evt.isComposing)
-        return;
-      evt.preventDefault();
-      evt.stopPropagation();
-      const tag = input.value.trim();
-      if (tag && !this.tags.includes(tag))
-        this.tags.push(tag);
+    addBtn.onclick = () => {
+      this.tagInputVisible = true;
       this.renderTags();
-      this.tagRow?.querySelector("input")?.focus();
-    });
+    };
   }
   colorChoices() {
     const colors = [...this.plugin.settings.colors];
@@ -1710,6 +1786,9 @@ var NoteModal = class extends import_obsidian3.Modal {
     this.close();
   }
   onClose() {
+    if (this.outsideHandler)
+      this.containerEl.ownerDocument.removeEventListener("pointerdown", this.outsideHandler);
+    this.outsideHandler = null;
     this.draftContent = this.textarea?.value ?? this.draftContent;
     const content = this.draftContent;
     const color = this.color;
@@ -2460,7 +2539,7 @@ function showMenu(menu, evt, anchor) {
   const rect = anchor.getBoundingClientRect();
   menu.showAtPosition({ x: rect.left, y: rect.bottom, width: rect.width }, anchor.ownerDocument);
 }
-function mountAnnotationCard(container, annotation, plugin, onChanged) {
+function mountAnnotationCard(container, annotation, plugin, onChanged, options) {
   const card = container.createDiv("aa-card");
   card.addClass("aa-reading-card");
   card.dataset.annotationId = annotation.id;
@@ -2503,6 +2582,8 @@ function mountAnnotationCard(container, annotation, plugin, onChanged) {
     card.createDiv({ cls: "aa-card-line", text: annotation.filePath });
   else if (!located)
     card.createDiv({ cls: "aa-card-edit-hint", text: t("ui.reassignHint", plugin) });
+  if (options?.showFilePath)
+    card.createDiv({ cls: "aa-card-file", text: annotation.filePath });
   const meta = card.createDiv("aa-card-meta");
   const location = compactLocation(annotation);
   const when = formatTime(annotation.created, plugin);
@@ -2917,9 +2998,10 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
     this.renderSection(nav, t("ui.navFiles", this.plugin));
     const allBtn = nav.createEl("button", {
       cls: "aa-library-path",
-      text: t("ui.allFiles", this.plugin),
       attr: { type: "button", "aria-pressed": this.pathKind === "all" ? "true" : "false" }
     });
+    allBtn.createSpan({ text: t("ui.allFiles", this.plugin) });
+    allBtn.createSpan({ cls: "aa-library-count", text: String(this.plugin.data.length) });
     if (this.pathKind === "all")
       allBtn.addClass("is-selected");
     allBtn.onclick = () => {
@@ -3012,9 +3094,10 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
       };
       const button = row.createEl("button", {
         cls: "aa-library-path",
-        text: folder.name,
         attr: { type: "button", "aria-pressed": this.pathKind === "folder" && this.pathValue === folder.path ? "true" : "false" }
       });
+      button.createSpan({ text: folder.name });
+      button.createSpan({ cls: "aa-library-count", text: String(folder.count) });
       if (this.pathKind === "folder" && this.pathValue === folder.path)
         button.addClass("is-selected");
       button.onclick = () => {
@@ -3173,11 +3256,11 @@ var AnnotationLibraryView = class extends import_obsidian8.ItemView {
       };
       return;
     }
-    visible.forEach((annotation) => mountAnnotationCard(list, annotation, this.plugin, () => this.render()));
+    visible.forEach((annotation) => mountAnnotationCard(list, annotation, this.plugin, () => this.render(), { showFilePath: true }));
   }
 };
 function buildTree(annotations) {
-  const root = { name: "", path: "", folders: [], files: [] };
+  const root = { name: "", path: "", count: 0, folders: [], files: [] };
   const counts = /* @__PURE__ */ new Map();
   for (const annotation of annotations)
     counts.set(annotation.filePath, (counts.get(annotation.filePath) ?? 0) + 1);
@@ -3190,13 +3273,18 @@ function buildTree(annotations) {
       path = path ? `${path}/${part}` : part;
       let child = node.folders.find((folder) => folder.name === part);
       if (!child) {
-        child = { name: part, path, folders: [], files: [] };
+        child = { name: part, path, count: 0, folders: [], files: [] };
         node.folders.push(child);
       }
       node = child;
     }
     node.files.push({ name: fileName, path: filePath, count });
   }
+  const rollup = (node) => {
+    node.count = node.files.reduce((sum, file) => sum + file.count, 0) + node.folders.reduce((sum, folder) => sum + rollup(folder), 0);
+    return node.count;
+  };
+  rollup(root);
   return root;
 }
 
@@ -3982,6 +4070,9 @@ async function loadSettingsAndData(plugin) {
     const local = await plugin.readLegacyPluginData();
     const hasLocalAnnotationData = plugin.hasAnnotationStoreContent(local);
     plugin.settings = Object.assign({}, DEFAULT_SETTINGS, local?.settings || {});
+    const legacyDefaultColors = ["#FCD34D", "#FBBF24", "#F97316", "#EF4444", "#8B5CF6", "#06B6D4"];
+    if (JSON.stringify(plugin.settings.colors) === JSON.stringify(legacyDefaultColors))
+      plugin.settings.colors = [...DEFAULT_SETTINGS.colors];
     const { data: synced, source } = await plugin.readAvailableAnnotationStore();
     if (!synced) {
       if (hasLocalAnnotationData) {
@@ -4825,7 +4916,8 @@ var ArticleAnnotator = class extends import_obsidian12.Plugin {
       highlightedText: existing.highlightedText,
       color: existing.color,
       noteContent: existing.noteContent,
-      tags: existing.tags ?? []
+      tags: existing.tags ?? [],
+      center: true
     }, async (content, color, tags) => {
       const current = this.data.find((item) => item.id === existing.id);
       if (!current)

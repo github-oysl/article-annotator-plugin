@@ -666,7 +666,8 @@ export default class ArticleAnnotator extends Plugin {
       highlightedText: existing.highlightedText,
       color: existing.color,
       noteContent: existing.noteContent,
-      tags: existing.tags ?? []
+      tags: existing.tags ?? [],
+      center: true
     }, async (content, color, tags) => {
       const current = this.data.find((item) => item.id === existing.id);
       if (!current)

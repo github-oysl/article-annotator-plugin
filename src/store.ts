@@ -129,6 +129,10 @@ export async function loadSettingsAndData(plugin: ArticleAnnotator) {
     const local = await plugin.readLegacyPluginData();
     const hasLocalAnnotationData = plugin.hasAnnotationStoreContent(local);
     plugin.settings = Object.assign({}, DEFAULT_SETTINGS, local?.settings || {});
+    // 颜色默认值升级：仍恰好使用旧版默认色板的用户，迁移到黄/绿/蓝/紫四色；自定义过的不受影响。
+    const legacyDefaultColors = ["#FCD34D", "#FBBF24", "#F97316", "#EF4444", "#8B5CF6", "#06B6D4"];
+    if (JSON.stringify(plugin.settings.colors) === JSON.stringify(legacyDefaultColors))
+      plugin.settings.colors = [...DEFAULT_SETTINGS.colors];
     const { data: synced, source } = await plugin.readAvailableAnnotationStore();
     if (!synced) {
       if (hasLocalAnnotationData) {

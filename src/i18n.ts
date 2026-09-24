@@ -180,10 +180,12 @@ const LANGUAGES: Record<string, LocaleNode> = {
   },
   "colorNames": {
     "#FCD34D": "Warm Yellow",
+    "#34D399": "Green",
+    "#60A5FA": "Blue",
+    "#8B5CF6": "Purple",
     "#FBBF24": "Amber",
     "#F97316": "Orange",
     "#EF4444": "Red",
-    "#8B5CF6": "Purple",
     "#06B6D4": "Cyan"
   },
   "time": {
@@ -380,10 +382,12 @@ const LANGUAGES: Record<string, LocaleNode> = {
   },
   "colorNames": {
     "#FCD34D": "暖黄",
+    "#34D399": "翠绿",
+    "#60A5FA": "蔚蓝",
+    "#8B5CF6": "紫色",
     "#FBBF24": "琥珀",
     "#F97316": "橙色",
     "#EF4444": "赤红",
-    "#8B5CF6": "紫色",
     "#06B6D4": "青色"
   },
   "time": {

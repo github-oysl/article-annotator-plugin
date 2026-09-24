@@ -1,4 +1,4 @@
-/** 写批注的弹窗。快捷键只打开草稿，确认后才交给插件保存。 */
+/** 写批注的浮动面板。快捷键只打开草稿，确认后才交给插件保存。 */
 import { type App, Modal } from "obsidian";
 import { validateHexColor } from "./annotation-model";
 import { chordLabel, getColorName, t } from "./i18n";
@@ -13,29 +13,35 @@ export class NoteModal extends Modal {
   draftContent = "";
   tags: string[] = [];
   tagRow: HTMLElement | null = null;
+  tagInputVisible = false;
+  /** 编辑已有批注时没有选区，直接居中显示。 */
+  centerOnScreen = false;
+  /** 点击面板外部时挂的监听，关闭时移除。 */
+  private outsideHandler: ((evt: PointerEvent) => void) | null = null;
   /** save：按钮或快捷键；discard：取消或 Esc；implicit：点遮罩或标题栏关闭。 */
   closeReason: "save" | "discard" | "implicit" = "implicit";
   settled = false;
 
-  constructor(app: App, plugin: ArticleAnnotator, seed: { highlightedText: string; color: string; noteContent?: string; tags?: string[] }, onSave: (content: string, color: string, tags: string[]) => void | Promise<void>) {
+  constructor(app: App, plugin: ArticleAnnotator, seed: { highlightedText: string; color: string; noteContent?: string; tags?: string[]; center?: boolean }, onSave: (content: string, color: string, tags: string[]) => void | Promise<void>) {
     super(app);
     this.plugin = plugin;
     this.highlightedText = seed.highlightedText;
     this.color = seed.color;
     this.draftContent = seed.noteContent || "";
     this.tags = [...(seed.tags ?? [])];
+    this.centerOnScreen = seed.center ?? false;
     this.onSave = onSave;
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("aa-note-modal");
-    this.setTitle(t("ui.noteComposerTitle", this.plugin));
+    // 遮罩透明化，面板以 fixed 定位浮在选区附近，保留 Modal 的快捷键作用域。
+    this.containerEl.addClass("aa-note-popover");
     const quoteBlock = contentEl.createDiv("aa-note-modal-quote");
     quoteBlock.createEl("p", { text: this.highlightedText });
     quoteBlock.style.setProperty("--aa-quote-accent", this.color);
     const colorRow = contentEl.createDiv("aa-note-modal-colors");
-    colorRow.createEl("span", { text: t("ui.color", this.plugin) });
     this.colorChoices().forEach((color) => {
       const swatch = colorRow.createEl("button", {
         cls: "aa-color-swatch",
@@ -61,35 +67,84 @@ export class NoteModal extends Modal {
       };
     });
     this.tagRow = contentEl.createDiv("aa-note-tags");
-    this.renderTags();
     const textarea = contentEl.createEl("textarea", {
-      attr: { placeholder: t("ui.placeholder", this.plugin), rows: "8" }
+      attr: { placeholder: t("ui.placeholder", this.plugin), rows: "4" }
     });
     textarea.value = this.draftContent;
     this.textarea = textarea;
     textarea.addEventListener("input", () => {
       this.draftContent = textarea.value;
     });
-    const hint = contentEl.createDiv("aa-note-modal-hint");
-    hint.setText(t("ui.saveHint", this.plugin).replace("${shortcut}", chordLabel()));
+    // 标签行放在输入框下方：chips + ＋按钮
+    this.renderTags();
     const btnRow = contentEl.createDiv("aa-modal-buttons");
-    const saveBtn = btnRow.createEl("button", {
-      text: `${t("ui.saveAction", this.plugin)} · ${chordLabel()}`,
-      attr: { type: "button" }
-    });
-    saveBtn.addClass("aa-button");
-    saveBtn.addClass("aa-button-primary");
     const cancelBtn = btnRow.createEl("button", {
       text: t("ui.cancel", this.plugin),
       attr: { type: "button" }
     });
     cancelBtn.addClass("aa-button");
     cancelBtn.addClass("aa-button-secondary");
+    const saveBtn = btnRow.createEl("button", {
+      text: `${t("ui.saveAction", this.plugin)} · ${chordLabel()}`,
+      attr: { type: "button" }
+    });
+    saveBtn.addClass("aa-button");
+    saveBtn.addClass("aa-button-primary");
     saveBtn.onclick = () => this.requestSave();
     cancelBtn.onclick = () => this.requestDiscard();
     this.bindSaveKeys();
+    this.placeNearSelection();
+    this.attachOutsideDismiss();
     const ownerWindow = this.containerEl.ownerDocument.defaultView ?? window;
     ownerWindow.setTimeout(() => textarea.focus(), 30);
+  }
+  /** 把面板放到当前选区下方；拿不到选区（编辑已有批注等）就居中偏上。 */
+  placeNearSelection() {
+    const doc = this.containerEl.ownerDocument;
+    const win = doc.defaultView;
+    if (!win)
+      return;
+    this.modalEl.addClass("aa-note-popover-panel");
+    const width = Math.min(420, win.innerWidth - 16);
+    this.modalEl.style.width = `${width}px`;
+    let rect: DOMRect | null = null;
+    if (!this.centerOnScreen) {
+      const sel = doc.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const rangeRect = sel.getRangeAt(0).getBoundingClientRect();
+        if (rangeRect.width > 0 || rangeRect.height > 0)
+          rect = rangeRect;
+      }
+    }
+    const height = this.modalEl.offsetHeight;
+    let top: number;
+    let left: number;
+    if (rect) {
+      top = rect.bottom + 8;
+      if (top + height > win.innerHeight - 8)
+        top = Math.max(8, rect.top - height - 8);
+      left = rect.left + rect.width / 2 - width / 2;
+    } else {
+      top = Math.max(8, win.innerHeight * 0.15);
+      left = win.innerWidth / 2 - width / 2;
+    }
+    left = Math.min(Math.max(8, left), win.innerWidth - width - 8);
+    this.modalEl.style.top = `${Math.round(top)}px`;
+    this.modalEl.style.left = `${Math.round(left)}px`;
+  }
+  /** 点击面板外视为隐式关闭（有内容时保存），等价于原来点遮罩的行为。 */
+  attachOutsideDismiss() {
+    const doc = this.containerEl.ownerDocument;
+    this.outsideHandler = (evt: PointerEvent) => {
+      const target = evt.target;
+      if (!(target instanceof Node))
+        return;
+      if (this.containerEl.contains(target))
+        return;
+      this.closeReason = "implicit";
+      this.close();
+    };
+    doc.addEventListener("pointerdown", this.outsideHandler);
   }
   renderTags() {
     const row = this.tagRow;
@@ -108,20 +163,39 @@ export class NoteModal extends Modal {
         this.renderTags();
       };
     });
-    const input = row.createEl("input", {
-      attr: { type: "text", placeholder: t("ui.tagName", this.plugin), "aria-label": t("ui.addTag", this.plugin) }
+    if (this.tagInputVisible) {
+      const input = row.createEl("input", {
+        attr: { type: "text", placeholder: t("ui.tagName", this.plugin), "aria-label": t("ui.addTag", this.plugin) }
+      });
+      const commit = () => {
+        const tag = input.value.trim();
+        if (tag && !this.tags.includes(tag))
+          this.tags.push(tag);
+        this.tagInputVisible = false;
+        this.renderTags();
+      };
+      input.addEventListener("keydown", (evt) => {
+        if (evt.key !== "Enter" || evt.ctrlKey || evt.metaKey || evt.isComposing)
+          return;
+        evt.preventDefault();
+        evt.stopPropagation();
+        commit();
+      });
+      input.addEventListener("blur", () => {
+        commit();
+      });
+      input.focus();
+      return;
+    }
+    const addBtn = row.createEl("button", {
+      cls: "aa-note-tag-add",
+      text: "+",
+      attr: { type: "button", "aria-label": t("ui.addTag", this.plugin) }
     });
-    input.addEventListener("keydown", (evt) => {
-      if (evt.key !== "Enter" || evt.ctrlKey || evt.metaKey || evt.isComposing)
-        return;
-      evt.preventDefault();
-      evt.stopPropagation();
-      const tag = input.value.trim();
-      if (tag && !this.tags.includes(tag))
-        this.tags.push(tag);
+    addBtn.onclick = () => {
+      this.tagInputVisible = true;
       this.renderTags();
-      this.tagRow?.querySelector("input")?.focus();
-    });
+    };
   }
   colorChoices(): string[] {
     const colors = [...this.plugin.settings.colors];
@@ -194,6 +268,9 @@ export class NoteModal extends Modal {
     this.close();
   }
   onClose() {
+    if (this.outsideHandler)
+      this.containerEl.ownerDocument.removeEventListener("pointerdown", this.outsideHandler);
+    this.outsideHandler = null;
     this.draftContent = this.textarea?.value ?? this.draftContent;
     const content = this.draftContent;
     const color = this.color;
