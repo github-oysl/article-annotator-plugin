@@ -48,6 +48,24 @@ export function normalizeRect(rect: Partial<PdfRect> | null | undefined): PdfRec
     height
   };
 }
+/** 旧记录没有标签。空字符串和重复项丢掉，不因此回写整份文件。 */
+function normalizeTags(value: unknown): string[] {
+  if (!Array.isArray(value))
+    return [];
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string")
+      continue;
+    const tag = item.trim();
+    if (!tag || seen.has(tag))
+      continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+  return tags;
+}
+
 export function normalizeAnnotation(annotation: AnnotationDraft | null | undefined): Annotation | null {
   if (!annotation || !annotation.filePath)
     return null;
@@ -61,6 +79,7 @@ export function normalizeAnnotation(annotation: AnnotationDraft | null | undefin
     color: annotation.color || DEFAULT_SETTINGS.defaultColor,
     highlightedText: annotation.highlightedText || "",
     noteContent: annotation.noteContent || "",
+    tags: normalizeTags(annotation.tags),
     prefix: typeof annotation.prefix === "string" ? annotation.prefix : "",
     suffix: typeof annotation.suffix === "string" ? annotation.suffix : "",
     anchor: readAnchorStatus(annotation.anchor),

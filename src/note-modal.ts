@@ -8,19 +8,22 @@ export class NoteModal extends Modal {
   plugin: ArticleAnnotator;
   highlightedText: string;
   color: string;
-  onSave: (content: string, color: string) => void | Promise<void>;
+  onSave: (content: string, color: string, tags: string[]) => void | Promise<void>;
   textarea: HTMLTextAreaElement | null = null;
   draftContent = "";
+  tags: string[] = [];
+  tagRow: HTMLElement | null = null;
   /** save：按钮或快捷键；discard：取消或 Esc；implicit：点遮罩或标题栏关闭。 */
   closeReason: "save" | "discard" | "implicit" = "implicit";
   settled = false;
 
-  constructor(app: App, plugin: ArticleAnnotator, seed: { highlightedText: string; color: string; noteContent?: string }, onSave: (content: string, color: string) => void | Promise<void>) {
+  constructor(app: App, plugin: ArticleAnnotator, seed: { highlightedText: string; color: string; noteContent?: string; tags?: string[] }, onSave: (content: string, color: string, tags: string[]) => void | Promise<void>) {
     super(app);
     this.plugin = plugin;
     this.highlightedText = seed.highlightedText;
     this.color = seed.color;
     this.draftContent = seed.noteContent || "";
+    this.tags = [...(seed.tags ?? [])];
     this.onSave = onSave;
   }
   onOpen() {
@@ -57,6 +60,8 @@ export class NoteModal extends Modal {
         swatch.setAttr("aria-pressed", "true");
       };
     });
+    this.tagRow = contentEl.createDiv("aa-note-tags");
+    this.renderTags();
     const textarea = contentEl.createEl("textarea", {
       attr: { placeholder: t("ui.placeholder", this.plugin), rows: "8" }
     });
@@ -85,6 +90,38 @@ export class NoteModal extends Modal {
     this.bindSaveKeys();
     const ownerWindow = this.containerEl.ownerDocument.defaultView ?? window;
     ownerWindow.setTimeout(() => textarea.focus(), 30);
+  }
+  renderTags() {
+    const row = this.tagRow;
+    if (!row)
+      return;
+    row.empty();
+    this.tags.forEach((tag, index) => {
+      const chip = row.createSpan({ cls: "aa-note-tag" });
+      chip.createSpan({ text: tag });
+      const remove = chip.createEl("button", {
+        text: "×",
+        attr: { type: "button", "aria-label": `${t("ui.removeTag", this.plugin)} ${tag}` }
+      });
+      remove.onclick = () => {
+        this.tags.splice(index, 1);
+        this.renderTags();
+      };
+    });
+    const input = row.createEl("input", {
+      attr: { type: "text", placeholder: t("ui.tagName", this.plugin), "aria-label": t("ui.addTag", this.plugin) }
+    });
+    input.addEventListener("keydown", (evt) => {
+      if (evt.key !== "Enter" || evt.ctrlKey || evt.metaKey || evt.isComposing)
+        return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      const tag = input.value.trim();
+      if (tag && !this.tags.includes(tag))
+        this.tags.push(tag);
+      this.renderTags();
+      this.tagRow?.querySelector("input")?.focus();
+    });
   }
   colorChoices(): string[] {
     const colors = [...this.plugin.settings.colors];
@@ -160,6 +197,7 @@ export class NoteModal extends Modal {
     this.draftContent = this.textarea?.value ?? this.draftContent;
     const content = this.draftContent;
     const color = this.color;
+    const tags = [...this.tags];
     const reason = this.closeReason;
     this.contentEl.empty();
     this.textarea = null;
@@ -168,6 +206,6 @@ export class NoteModal extends Modal {
     this.settled = true;
     const hasText = content.trim().length > 0;
     if (reason === "save" || (reason === "implicit" && hasText))
-      void this.onSave(content, color);
+      void this.onSave(content, color, tags);
   }
 };

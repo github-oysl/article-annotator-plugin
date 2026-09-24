@@ -8,6 +8,7 @@ import {
   FileView,
   MarkdownView,
   Menu,
+  normalizePath,
   Notice,
   Platform,
   Plugin,
@@ -30,21 +31,30 @@ import {
   getAnnotationLocationLabel,
   getFileType,
   isMarkdownPosition,
-  isPdfPosition,
   positionsOverlap,
   validateHexColor,
   type AnnotationStoreData,
 } from "./annotation-model";
-import { highlightField, refreshHighlights } from "./editor-highlights";
+import { compareByDocumentPosition } from "./annotation-query";
+import { annotationGutter, annotationGutterField, highlightField, refreshHighlights } from "./editor-highlights";
 import { getColorName, t } from "./i18n";
 import { NoteModal } from "./note-modal";
 import * as pdf from "./pdf";
 import { decorateReadingHighlights } from "./reading-highlight";
 import { SearchModal } from "./search-modal";
 import { AnnotatorSettingTab } from "./settings";
+import { VIEW_TYPE_LIBRARY, AnnotationLibraryView } from "./library-view";
+import { createSelectionToolbar } from "./selection-toolbar";
 import { VIEW_TYPE, AnnotatorSidebarView } from "./sidebar";
 import * as store from "./store";
 import type { Annotation, AnnotationDraft, AnnotatorSettings, HighlightGroup, PdfSelection } from "./types";
+
+/** 用原文前几个字做新笔记的文件名，去掉路径里不能出现的符号。 */
+function noteTitleFromQuote(quote: string, fallback: string): string {
+  const compact = quote.replace(/\s+/g, " ").trim().slice(0, 24);
+  const cleaned = compact.replace(/[\\/:*?"<>|#^[\]\n\r]/g, "").trim();
+  return cleaned || fallback;
+}
 
 export default class ArticleAnnotator extends Plugin {
   data: Annotation[] = [];
@@ -65,6 +75,9 @@ export default class ArticleAnnotator extends Plugin {
     console.log("\u{1F4DD} \u6587\u7AE0\u6279\u6CE8: loading...");
     await this.loadSettingsAndData();
     this.registerEditorExtension(highlightField);
+    this.registerEditorExtension(annotationGutterField);
+    this.registerEditorExtension(annotationGutter);
+    this.registerEditorExtension(createSelectionToolbar(this));
     this.registerEditorExtension(createAnnotationHistoryExtension((op) => {
       void this.applyAnnotationHistory(op);
     }));
@@ -88,6 +101,7 @@ export default class ArticleAnnotator extends Plugin {
       this.sidebarView = new AnnotatorSidebarView(leaf, this);
       return this.sidebarView;
     });
+    this.registerView(VIEW_TYPE_LIBRARY, (leaf) => new AnnotationLibraryView(leaf, this));
     this.addRibbonIcon("pen-tool", t("pluginName", this), () => {
       this.activateSidebar();
     });
@@ -143,6 +157,13 @@ export default class ArticleAnnotator extends Plugin {
       decorateReadingHighlights(el, annotations, (annotation) => {
         void this.navigateToAnnotation(annotation);
       });
+    });
+    this.addCommand({
+      id: "open-annotation-library",
+      name: t("commands.openLibrary", this),
+      callback: () => {
+        void this.openAnnotationLibrary();
+      }
     });
     this.addCommand({
       id: "toggle-sidebar",
@@ -212,6 +233,7 @@ export default class ArticleAnnotator extends Plugin {
     this.clearPdfHighlightLayers();
     this.clearPdfRenderTimers();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_LIBRARY);
   }
   async finishStartup() {
     await this.initSidebar();
@@ -228,8 +250,7 @@ export default class ArticleAnnotator extends Plugin {
   async handleActiveFileChange(file: TFile) {
     await this.reloadAnnotationStoreFromVault();
     this.activeFile = file;
-    if (this.sidebarView)
-      this.sidebarView.update(file);
+    this.refreshAnnotationViews(file);
     if (getFileType(file) === "pdf") {
       this.schedulePdfRender(file.path, 120);
     } else {
@@ -270,8 +291,7 @@ export default class ArticleAnnotator extends Plugin {
     }
     this.data = reconciled.annotations;
     await this.saveAnnotations();
-    if (this.sidebarView)
-      this.sidebarView.update(file);
+    this.refreshAnnotationViews(file);
     refreshHighlights(this);
   }
   editorForFile(file: TFile): Editor | null {
@@ -320,7 +340,7 @@ export default class ArticleAnnotator extends Plugin {
     if (!changed)
       return;
     await this.saveAnnotations();
-    this.sidebarView?.update(this.activeFile);
+    this.refreshAnnotationViews(this.activeFile);
   }
 
   /** 快捷键和右键菜单共用：先在弹窗里写草稿，确认后才写入批注文件。 */
@@ -329,12 +349,13 @@ export default class ArticleAnnotator extends Plugin {
       highlightedText: draft.highlightedText || "",
       color: draft.color || this.settings.defaultColor,
       noteContent: draft.noteContent || ""
-    }, async (content, color) => {
+    }, async (content, color, tags) => {
       const saved = await this.addAnnotation({
         ...draft,
         color,
+        tags,
         noteContent: content.trim(),
-        type: "note",
+        type: content.trim() ? "note" : "highlight",
         updated: Date.now()
       });
       if (!saved)
@@ -461,8 +482,7 @@ export default class ArticleAnnotator extends Plugin {
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (activeView?.file) {
       this.activeFile = activeView.file;
-      if (this.sidebarView)
-        this.sidebarView.update(activeView.file);
+      this.refreshAnnotationViews(activeView.file);
     }
   }
   async activateSidebar() {
@@ -581,8 +601,9 @@ export default class ArticleAnnotator extends Plugin {
     const modal = new NoteModal(this.app, this, {
       highlightedText: existing.highlightedText,
       color: existing.color,
-      noteContent: existing.noteContent
-    }, async (content, color) => {
+      noteContent: existing.noteContent,
+      tags: existing.tags ?? []
+    }, async (content, color, tags) => {
       const current = this.data.find((item) => item.id === existing.id);
       if (!current)
         return;
@@ -591,12 +612,14 @@ export default class ArticleAnnotator extends Plugin {
       await this.updateAnnotation(existing.id, {
         noteContent,
         color,
+        tags,
         type: noteContent ? "note" : "highlight"
       });
       const next = this.data.find((item) => item.id === existing.id);
       if (!next)
         return;
-      if (next.noteContent !== before.noteContent || next.color !== before.color || next.type !== before.type)
+      const tagsChanged = (before.tags ?? []).join("\0") !== next.tags.join("\0");
+      if (next.noteContent !== before.noteContent || next.color !== before.color || next.type !== before.type || tagsChanged)
         this.pushAnnotationHistory("update", next, before);
       new Notice(t("notifications.annotationSaved", this));
     });
@@ -752,22 +775,7 @@ export default class ArticleAnnotator extends Plugin {
       new Notice(t("notifications.noAnnotations", this));
       return;
     }
-    const sorted = [...annotations].sort((a, b) => {
-      if (a.fileType === "pdf" && b.fileType === "pdf" && isPdfPosition(a.position) && isPdfPosition(b.position)) {
-        if (a.position.page !== b.position.page)
-          return a.position.page - b.position.page;
-        return a.created - b.created;
-      }
-      if (a.fileType === "pdf")
-        return -1;
-      if (b.fileType === "pdf")
-        return 1;
-      if (!isMarkdownPosition(a.position) || !isMarkdownPosition(b.position))
-        return a.created - b.created;
-      if (a.position.startLine !== b.position.startLine)
-        return a.position.startLine - b.position.startLine;
-      return a.position.startCh - b.position.startCh;
-    });
+    const sorted = [...annotations].sort(compareByDocumentPosition);
     let content = t("export.title", this).replace("${name}", file.basename);
     content += `> ${t("export.exportTime", this)}${(/* @__PURE__ */ new Date()).toLocaleString()}
 `;
@@ -825,6 +833,77 @@ export default class ArticleAnnotator extends Plugin {
   openSearchModal() {
     const modal = new SearchModal(this.app, this);
     modal.open();
+  }
+  async openAnnotationLibrary() {
+    const { workspace } = this.app;
+    let leaf: WorkspaceLeaf | null | undefined = workspace.getLeavesOfType(VIEW_TYPE_LIBRARY)[0];
+    if (!leaf) {
+      leaf = workspace.getLeaf("tab");
+      if (leaf)
+        await leaf.setViewState({ type: VIEW_TYPE_LIBRARY, active: true });
+    }
+    if (leaf)
+      workspace.revealLeaf(leaf);
+  }
+  refreshAnnotationViews(file: TFile | null = this.activeFile) {
+    this.sidebarView?.update(file);
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_LIBRARY)) {
+      if (leaf.view instanceof AnnotationLibraryView)
+        leaf.view.render();
+    }
+  }
+  /** 改颜色或标签时记下撤销前的样子。保存格式仍走原来的 updateAnnotation。 */
+  async commitAnnotationUpdate(id: string, updates: Partial<AnnotationDraft>) {
+    const current = this.data.find((item) => item.id === id);
+    if (!current)
+      return;
+    const before = JSON.parse(JSON.stringify(current)) as Annotation;
+    await this.updateAnnotation(id, updates);
+    const next = this.data.find((item) => item.id === id);
+    if (!next)
+      return;
+    const beforeTags = before.tags ?? [];
+    const tagsChanged = beforeTags.join("\0") !== next.tags.join("\0");
+    if (next.noteContent !== before.noteContent || next.color !== before.color || next.type !== before.type || tagsChanged)
+      this.pushAnnotationHistory("update", next, before);
+  }
+  async copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      new Notice(t("ui.copied", this));
+    } catch {
+      new Notice(t("ui.copyFailed", this));
+    }
+  }
+  copyObsidianLink(annotation: Annotation) {
+    const vault = this.app.vault.getName();
+    const url = `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(annotation.filePath)}`;
+    void this.copyText(url);
+  }
+  async convertAnnotationToNote(annotation: Annotation) {
+    const parts = annotation.filePath.split("/");
+    parts.pop();
+    const folder = parts.join("/");
+    const title = noteTitleFromQuote(annotation.highlightedText, t("ui.note", this));
+    let path = normalizePath(folder ? `${folder}/${title}.md` : `${title}.md`);
+    let index = 2;
+    while (this.app.vault.getAbstractFileByPath(path)) {
+      path = normalizePath(folder ? `${folder}/${title} ${index}.md` : `${title} ${index}.md`);
+      index += 1;
+    }
+    const quote = annotation.highlightedText.replace(/\r\n/g, "\n").split("\n").map((line) => `> ${line}`).join("\n");
+    const source = annotation.filePath.replace(/\.md$/i, "");
+    const note = annotation.noteContent.trim();
+    const body = `${quote}\n\n${note ? `${note}\n\n` : ""}${t("ui.noteSource", this)}：[[${source}]]\n`;
+    try {
+      const created = await this.app.vault.create(path, body);
+      new Notice(t("ui.noteCreated", this));
+      const leaf = this.app.workspace.getLeaf("tab");
+      if (leaf)
+        await leaf.openFile(created);
+    } catch {
+      new Notice(t("notifications.fileNotFound", this));
+    }
   }
   getActivePdfView() : FileView | null {
     return pdf.getActivePdfView(this);

@@ -271,8 +271,7 @@ export function renderPdfHighlights(plugin: ArticleAnnotator, filePath = plugin.
           el.style.top = `${rect.y * 100}%`;
           el.style.width = `${rect.width * 100}%`;
           el.style.height = `${rect.height * 100}%`;
-          el.style.backgroundColor = `${ann.color}40`;
-          el.style.borderColor = ann.color;
+          el.style.setProperty("--aa-accent", ann.color);
           el.setAttribute("data-annotation-id", ann.id);
           el.setAttribute("title", ann.noteContent || ann.highlightedText);
         });

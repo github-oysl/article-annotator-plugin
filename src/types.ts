@@ -49,6 +49,8 @@ export interface Annotation {
   color: string;
   highlightedText: string;
   noteContent: string;
+  /** 用户加在这条批注上的标签。旧数据没有这个字段。 */
+  tags: string[];
   /** 原句前面的一小段，用来在正文改动后重新找到它。 */
   prefix: string;
   /** 原句后面的一小段。 */
@@ -93,6 +95,7 @@ export interface AnnotationDraft {
   color?: string;
   highlightedText?: string;
   noteContent?: string;
+  tags?: string[];
   prefix?: string;
   suffix?: string;
   anchor?: AnchorStatus;

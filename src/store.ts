@@ -177,9 +177,7 @@ export async function reloadAnnotationStoreFromVault(plugin: ArticleAnnotator) {
     try {
       const synced = await plugin.readAnnotationStore();
       plugin.applyAnnotationStoreData(synced);
-      if (plugin.sidebarView) {
-        plugin.sidebarView.update(plugin.activeFile);
-      }
+      plugin.refreshAnnotationViews(plugin.activeFile);
       refreshHighlights(plugin);
       plugin.schedulePdfRender();
     } finally {
@@ -228,8 +226,7 @@ export async function addAnnotation(plugin: ArticleAnnotator, annotation: Annota
       return null;
     plugin.data.push(normalized);
     await plugin.saveAnnotations();
-    if (plugin.sidebarView)
-      plugin.sidebarView.update(plugin.activeFile);
+    plugin.refreshAnnotationViews(plugin.activeFile);
     refreshHighlights(plugin);
     if (normalized.fileType === "pdf")
       plugin.schedulePdfRender(normalized.filePath, 60);
@@ -240,8 +237,7 @@ export async function removeAnnotation(plugin: ArticleAnnotator, id: string, rec
     const target = plugin.data.find((a) => a.id === id) || null;
     plugin.data = plugin.data.filter((a) => a.id !== id);
     await plugin.saveAnnotations();
-    if (plugin.sidebarView)
-      plugin.sidebarView.update(plugin.activeFile);
+    plugin.refreshAnnotationViews(plugin.activeFile);
     refreshHighlights(plugin);
     if (target?.fileType === "pdf")
       plugin.schedulePdfRender(target.filePath, 60);
@@ -269,8 +265,7 @@ async function replaceAnnotationSnapshot(plugin: ArticleAnnotator, annotation: A
     }
     plugin.data[idx] = annotation;
     await plugin.saveAnnotations();
-    if (plugin.sidebarView)
-      plugin.sidebarView.update(plugin.activeFile);
+    plugin.refreshAnnotationViews(plugin.activeFile);
     refreshHighlights(plugin);
     if (annotation.fileType === "pdf")
       plugin.schedulePdfRender(annotation.filePath, 60);
@@ -301,8 +296,7 @@ export async function updateAnnotation(plugin: ArticleAnnotator, id: string, upd
       return;
     plugin.data[idx] = next;
     await plugin.saveAnnotations();
-    if (plugin.sidebarView)
-      plugin.sidebarView.update(plugin.activeFile);
+    plugin.refreshAnnotationViews(plugin.activeFile);
     refreshHighlights(plugin);
     if (next.fileType === "pdf")
       plugin.schedulePdfRender(next.filePath, 60);
@@ -325,8 +319,7 @@ export async function clearFileAnnotations(plugin: ArticleAnnotator) {
     const activeType = getFileType(plugin.activeFile);
     plugin.data = plugin.data.filter((a) => a.filePath !== activePath);
     await plugin.saveAnnotations();
-    if (plugin.sidebarView)
-      plugin.sidebarView.update(plugin.activeFile);
+    plugin.refreshAnnotationViews(plugin.activeFile);
     refreshHighlights(plugin);
     if (activeType === "pdf") {
       plugin.clearPdfHighlightLayers(activePath);

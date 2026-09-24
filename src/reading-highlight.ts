@@ -65,8 +65,7 @@ function wrapRange(chunks: readonly TextChunk[], start: number, end: number, ann
     mark.dataset.annotationId = annotation.id;
     if (annotation.noteContent)
       mark.title = annotation.noteContent;
-    mark.style.backgroundColor = `${annotation.color}55`;
-    mark.style.borderBottom = `2px solid ${annotation.color}`;
+    mark.style.setProperty("--aa-accent", annotation.color);
     mark.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
