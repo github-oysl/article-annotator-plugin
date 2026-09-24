@@ -2,6 +2,17 @@
 
 All notable changes to this plugin will be documented in this file.
 
+## [0.2.3] - 2026-09-23
+
+### Changed
+- 批注快捷键只打开草稿。Ctrl+Enter 保存，写了内容后点弹窗外面也会保存；Esc 和取消丢弃草稿
+- 侧边栏操作按钮保持可见，搜索结果可用方向键选择并用 Enter 打开
+- 源码按文案、存储、PDF、侧边栏和设置拆开
+
+### Release
+- Tag: `0.2.3`（无 v 前缀）
+- Assets: `main.js`, `manifest.json`, `styles.css`
+
 ## [0.2.1] - 2026-07-06
 
 ### Fixed

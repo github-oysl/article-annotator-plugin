@@ -41,7 +41,7 @@
 }
 
 .aa-mobile-fab-panel button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--background-modifier-border);
@@ -101,8 +101,8 @@
 }
 
 .aa-sidebar-header button {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 4px;
   background: transparent;
   border: none;
@@ -120,6 +120,11 @@
 .aa-sidebar-header button:hover {
   background: color-mix(in srgb, var(--background-modifier-hover) 50%, transparent 50%);
   color: var(--text-normal);
+}
+
+.aa-sidebar-header button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
 }
 
 /* 空状态 */
@@ -204,6 +209,11 @@
   color: var(--text-normal);
 }
 
+.aa-sidebar-actions button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
 .aa-sidebar-actions button.is-active {
   background: color-mix(in srgb, var(--interactive-accent) 10%, transparent 90%);
   color: var(--interactive-accent);
@@ -273,8 +283,8 @@
   box-shadow: 0 2px 6px rgba(0,0,0,0.18), 0 8px 20px rgba(0,0,0,0.12);
 }
 
-.aa-card.is-selectable {
-  padding-left: 32px !important;
+.aa-sidebar .aa-card.is-selectable {
+  padding-left: 32px;
 }
 
 /* 左侧装订孔 */
@@ -325,6 +335,15 @@
 /* 内容区 */
 .aa-card-body {
   padding: 12px 14px 8px 32px;
+}
+
+.aa-card-body.is-navigable {
+  cursor: pointer;
+}
+
+.aa-card-body.is-navigable:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
 }
 
 .aa-card-header {
@@ -382,27 +401,33 @@
 
 .aa-card-actions {
   display: flex;
-  gap: 2px;
-  padding: 0;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.aa-card:hover .aa-card-actions {
+  gap: 4px;
+  padding: 4px 0 0;
   opacity: 1;
 }
 
 .aa-card-actions button {
   flex: 1;
-  padding: 3px 6px;
-  font-size: 10px;
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 12px;
   border: none;
   background: transparent;
-  color: var(--text-faint);
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 3px;
   transition: color 0.12s ease, background 0.12s ease;
   letter-spacing: 0.3px;
+}
+
+.aa-card-actions button.is-accent {
+  color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.aa-card-actions button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
 }
 
 .aa-card-actions button:hover {
@@ -455,6 +480,15 @@
   border-bottom-color: color-mix(in srgb, var(--interactive-accent) 50%, transparent 50%);
 }
 
+.aa-card-edit-hint,
+.aa-note-modal-hint,
+.aa-shortcut-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
 .aa-note-modal {
   padding: 8px 0;
 }
@@ -496,10 +530,14 @@
   color: var(--text-muted);
 }
 
-.aa-color-swatch {
+button.aa-color-swatch {
+  appearance: none;
   display: inline-block;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
   border-radius: 50%;
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
@@ -514,6 +552,15 @@
 
 .aa-color-swatch.is-selected {
   box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--text-accent, var(--interactive-accent));
+}
+
+.aa-color-swatch:focus-visible,
+.aa-modal-buttons button:focus-visible,
+.aa-search-card:focus-visible,
+.aa-group-header:focus-visible,
+.aa-group-actions button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
 }
 
 .aa-note-modal textarea {
@@ -683,10 +730,15 @@
   box-shadow: 0 8px 18px rgba(0,0,0,0.06);
 }
 
-.aa-search-card:hover {
+.aa-search-card:hover,
+.aa-search-card.is-active {
   background: var(--background-modifier-hover);
   transform: translateX(2px) translateY(-1px);
   box-shadow: 0 14px 28px rgba(0,0,0,0.12);
+}
+
+.aa-search-card.is-active {
+  border-color: var(--interactive-accent);
 }
 
 .aa-card-color {
@@ -694,7 +746,7 @@
   flex-shrink: 0;
 }
 
-.aa-card-body {
+.aa-search-card-body {
   padding: 12px 14px;
   flex: 1;
   min-width: 0;
@@ -782,10 +834,12 @@
   border: none;
   cursor: pointer;
   font-size: 12px;
-  padding: 2px 4px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px;
   border-radius: 4px;
   transition: background 0.15s;
-  opacity: 0.6;
+  opacity: 0.85;
 }
 
 .aa-group-actions button:hover {
@@ -838,9 +892,9 @@
 }
 
 /* 分组拖拽放置目标 */
-.aa-group-drop-target {
-  border-color: var(--interactive-accent) !important;
-  background-color: color-mix(in srgb, var(--interactive-accent) 8%, transparent) !important;
+.aa-sidebar .aa-group-container.aa-group-drop-target {
+  border-color: var(--interactive-accent);
+  background-color: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 30%, transparent);
 }
 
@@ -859,7 +913,7 @@
   margin-top: 4px;
 }
 
-.aa-card-color-label {
+.aa-search-card .aa-card-color-label {
   font-size: 10px;
   margin-top: 2px;
 }
@@ -893,6 +947,16 @@
 
   .aa-card-actions button {
     min-width: calc(50% - 3px);
+  }
+}
+
+@media (pointer: coarse) {
+  .aa-card-actions button,
+  .aa-sidebar-header button,
+  .aa-group-actions button,
+  button.aa-color-swatch {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
@@ -933,26 +997,7 @@
   border-color: var(--interactive-accent);
 }
 
-/* ========== 动画 ========== */
-
-@keyframes aa-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.aa-card {
-  animation: aa-fade-in 0.2s ease-out;
-}
-
-.aa-search-card {
-  animation: aa-fade-in 0.15s ease-out;
-}
+/* 卡片不再在每次重绘时播放入场动画，避免保存一条批注时整栏闪动。 */
 
 /* ========== 滚动条美化 ========== */
 

@@ -1,0 +1,355 @@
+/** 界面文案。当前语言来自插件设置。 */
+import { Platform } from "obsidian";
+
+// ==================== i18n System ====================
+export type LocaleNode = string | { [key: string]: LocaleNode | undefined };
+
+const LANGUAGES: Record<string, LocaleNode> = {
+  "en": {
+  "pluginName": "Article Annotator",
+  "commands": {
+    "toggleSidebar": "Toggle annotation panel",
+    "exportAnnotations": "Export current file annotations",
+    "searchAnnotations": "Search all annotations",
+    "clearFileAnnotations": "Clear current file annotations",
+    "mobileHighlight": "Highlight current selection (default color)",
+    "mobileAddNote": "Add note to current selection"
+  },
+  "notifications": {
+    "pluginLoaded": "📝 Article Annotator loaded",
+    "openFileFirst": "Please open a file first",
+    "noAnnotations": "No annotations in current file",
+    "openEditableNote": "Please open an editable note first",
+    "placeCursor": "Place the cursor on a heading or body text.",
+    "annotationExists": "⚠️ This area already has an annotation, please delete it first before re-highlighting",
+    "annotationSaved": "✅ Annotation saved",
+    "confirmDelete": "Are you sure you want to delete this annotation?",
+    "fileNotFound": "File not found or has been moved",
+    "crossPageNotSupported": "Cross-page selection is not supported. Please select text within the same page.",
+    "invalidHex": "Please enter a valid hex color, e.g. #FCD34D",
+    "invalidHexColor": "Please enter a valid hex color, e.g. #FCD34D",
+    "syncedStoreReadFailed": "Failed to read synced annotations file",
+    "annotationsMigrated": "Annotations migrated to vault storage",
+    "exportDone": "✅ Exported:",
+    "clearFileConfirm": "Are you sure you want to clear all ${n} annotations in the current file?",
+    "highlightAdded": "✅ ${color} Highlight added",
+    "customColorSaved": "✅ Custom color saved",
+    "customColorCleared": "✅ Custom color cleared",
+    "customColorNameSaved": "✅ Custom color name saved",
+    "fileCleared": "🗑️ Cleared ${n} annotations"
+  },
+  "ui": {
+    "highlight": "Highlight",
+    "note": "Note",
+    "color": "Color:",
+    "placeholder": "Enter your thoughts here...",
+    "save": "💾 Save",
+    "saveAction": "Save",
+    "saveHint": "${shortcut} saves, Esc cancels. Clicking outside saves a note you have written.",
+    "cardEditHint": "${shortcut} saves, Esc cancels. Clicking elsewhere also saves.",
+    "noteComposerTitle": "Write note",
+    "close": "Close",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "searchPlaceholder": "Enter keywords to search...",
+    "searchHint": "↑↓ chooses a result, Enter opens it",
+    "noResults": "No matching annotations found",
+    "noData": "No annotation data yet",
+    "all": "All",
+    "highlights": "Highlights",
+    "notes": "Notes",
+    "emptyHint": "Place the cursor on a heading or sentence, or select text, then highlight or add a note.",
+    "deleteConfirm": "Delete this annotation?",
+    "search": "🔍 Search",
+    "export": "📤 Export",
+    "clear": "🗑️ Clear",
+    "navigate": "Navigate",
+    "editNote": "Edit note",
+    "editNoteTitle": "✏️ Edit note",
+    "searchAll": "🔍 Search all annotations",
+    "searchResults": "${n} annotations found",
+    "clearFileConfirm": "Clear ${n} annotations for the current file?",
+    "mobileHighlight": "🔖 Highlight",
+    "mobileAddNote": "✏️ Add note",
+    "mobileSidebar": "📚 Sidebar",
+    "sidebarTitle": "📝 Article Annotator",
+    "fabAriaLabel": "Article Annotator quick actions",
+    "customColor": "Custom",
+    "customColorDesc": "Custom highlight color (hex)",
+    "customColorName": "Custom color name",
+    "customColorNameDesc": "Display name for custom color in menu",
+    "invalidHexColor": "Please enter a valid hex color, e.g. #FCD34D",
+    "locationPage": "Page {page}",
+    "locationLine": "Line {line}",
+    "pdfAddNote": "✏️ Write note",
+    "group": "📦 Group",
+    "groupSelected": "Group selected",
+    "cancelSelection": "Cancel selection",
+    "selectMultiple": "☑️ Multi-select",
+    "groupName": "Group name",
+    "createGroup": "Create group",
+    "renameGroup": "Rename group",
+    "groupAssignPrompt": "Group ${n} annotations into:",
+    "renameGroupPrompt": "Rename group \"${name}\":",
+    "ungroupConfirm": "Remove ${n} annotations from \"${name}\"?",
+    "ungrouped": "Ungrouped",
+    "ungroup": "Ungroup",
+    "collapseGroup": "Collapse group",
+    "expandGroup": "Expand group",
+    "groupCount": "${n} annotations"
+  },
+  "settings": {
+    "defaultColor": "Default highlight color",
+    "defaultColorDesc": "Color used when highlighting by default",
+    "highlightColors": "Highlight colors",
+    "custom": "Custom",
+    "shortcuts": "Shortcuts",
+    "about": "About",
+    "language": "Language",
+    "languageDesc": "Interface language for the plugin",
+    "shortcutsHint": "💡 Set shortcuts in Obsidian Settings → Hotkeys",
+    "notBound": "not bound",
+    "readingModeNotice": "Note: Annotations are not visible in Reading mode. Please switch to Editing mode to view highlights.",
+    "aboutText": "Article Annotator 0.2.3 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
+  },
+  "colorNames": {
+    "#FCD34D": "Warm Yellow",
+    "#FBBF24": "Amber",
+    "#F97316": "Orange",
+    "#EF4444": "Red",
+    "#8B5CF6": "Purple",
+    "#06B6D4": "Cyan"
+  },
+  "time": {
+    "today": "Today",
+    "yesterday": "Yesterday"
+  },
+  "export": {
+    "title": "# 📍 Annotations Export — ${name}\n\n",
+    "exportTime": "> Export time: ",
+    "totalCount": "> Total annotations: ",
+    "items": " items",
+    "note": "**Note:** ",
+    "location": "*Location: ",
+    "fileType": "*File type: ",
+    "time": "*Time: ",
+    "pdf": "PDF",
+    "markdown": "Markdown",
+    "fileSuffix": "-annotations-export.md",
+    "exportDone": "✅ Exported:"
+  }
+},
+  "zh": {
+  "pluginName": "文章批注",
+  "commands": {
+    "toggleSidebar": "切换批注面板",
+    "exportAnnotations": "导出当前文件批注",
+    "searchAnnotations": "搜索全部批注",
+    "clearFileAnnotations": "清空当前文件批注",
+    "mobileHighlight": "高亮当前选中（默认颜色）",
+    "mobileAddNote": "给当前选中写批注"
+  },
+  "notifications": {
+    "pluginLoaded": "📝 文章批注已加载",
+    "openFileFirst": "请先打开一个文件",
+    "noAnnotations": "当前文件没有批注",
+    "openEditableNote": "请先打开一个可编辑的笔记",
+    "placeCursor": "请把光标放到要批注的正文或标题上",
+    "annotationExists": "⚠️ 该区域已有批注，请先删除再重新标注",
+    "annotationSaved": "✅ 批注已保存",
+    "confirmDelete": "确定删除这条批注？",
+    "fileNotFound": "文件不存在或已被移动",
+    "crossPageNotSupported": "跨页选择暂不支持，请在同一页内选择文本",
+    "invalidHex": "请输入有效的 hex 颜色，如 #FCD34D",
+    "invalidHexColor": "请输入有效的十六进制颜色，如 #FCD34D",
+    "syncedStoreReadFailed": "同步批注文件读取失败",
+    "annotationsMigrated": "批注已迁移到知识库存储",
+    "exportDone": "✅ 已导出：",
+    "clearFileConfirm": "确定清空当前文件的 ${n} 条批注？",
+    "highlightAdded": "✅ ${color} 高亮已添加",
+    "customColorSaved": "✅ 自定义颜色已保存",
+    "customColorCleared": "✅ 自定义颜色已清空",
+    "customColorNameSaved": "✅ 自定义颜色名称已保存",
+    "fileCleared": "🗑️ 已清空 ${n} 条批注"
+  },
+  "ui": {
+    "highlight": "高亮",
+    "note": "批注",
+    "color": "颜色：",
+    "placeholder": "在此输入你的想法……",
+    "save": "💾 保存",
+    "saveAction": "保存",
+    "saveHint": "${shortcut} 保存，Esc 取消。点弹窗外面会保存已写的批注。",
+    "cardEditHint": "${shortcut} 保存，Esc 取消。点别处也会保存。",
+    "noteComposerTitle": "写批注",
+    "close": "关闭",
+    "edit": "编辑",
+    "delete": "删除",
+    "cancel": "取消",
+    "searchPlaceholder": "输入关键词搜索…",
+    "searchHint": "↑↓ 选择结果，Enter 打开",
+    "noResults": "没有找到匹配的批注",
+    "noData": "暂无批注数据",
+    "all": "全部",
+    "highlights": "高亮",
+    "notes": "批注",
+    "emptyHint": "把光标放在标题或句子上，或先选中文字，再高亮或批注",
+    "deleteConfirm": "确定删除这条批注？",
+    "search": "🔍 搜索",
+    "export": "📤 导出",
+    "clear": "🗑️ 清空",
+    "navigate": "定位",
+    "editNote": "编辑",
+    "editNoteTitle": "✏️ 编辑批注",
+    "searchAll": "🔍 搜索全部批注",
+    "searchResults": "共 ${n} 条批注",
+    "clearFileConfirm": "确定清空当前文件的 ${n} 条批注？",
+    "mobileHighlight": "🔖 高亮",
+    "mobileAddNote": "✏️ 写批注",
+    "mobileSidebar": "📚 面板",
+    "sidebarTitle": "📝 文章批注",
+    "fabAriaLabel": "文章批注快捷操作",
+    "customColor": "自定义",
+    "customColorDesc": "自定义高亮颜色（十六进制）",
+    "customColorName": "自定义颜色名称",
+    "customColorNameDesc": "在菜单中显示的颜色名称",
+    "invalidHexColor": "请输入有效的十六进制颜色，如 #FCD34D",
+    "locationPage": "第 {page} 页",
+    "locationLine": "第 {line} 行",
+    "pdfAddNote": "✏️ 写批注",
+    "group": "📦 分组",
+    "groupSelected": "分组选中",
+    "cancelSelection": "取消选择",
+    "selectMultiple": "☑️ 多选",
+    "groupName": "分组名称",
+    "createGroup": "创建分组",
+    "renameGroup": "重命名分组",
+    "groupAssignPrompt": "将 ${n} 个批注分组到：",
+    "renameGroupPrompt": "重命名分组「${name}」：",
+    "ungroupConfirm": "确定将「${name}」中的 ${n} 个批注取消分组？",
+    "ungrouped": "未分组批注",
+    "ungroup": "取消分组",
+    "collapseGroup": "折叠分组",
+    "expandGroup": "展开分组",
+    "groupCount": "${n} 条批注"
+  },
+  "settings": {
+    "defaultColor": "默认高亮颜色",
+    "defaultColorDesc": "高亮时默认使用的颜色",
+    "highlightColors": "高亮颜色",
+    "custom": "自定义",
+    "shortcuts": "快捷键",
+    "about": "关于",
+    "language": "语言",
+    "languageDesc": "插件界面语言",
+    "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
+    "notBound": "未绑定",
+    "readingModeNotice": "说明：阅读模式当前不显示批注高亮，请在编辑模式下查看高亮。",
+    "aboutText": "文章批注 0.2.3 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
+  },
+  "colorNames": {
+    "#FCD34D": "暖黄",
+    "#FBBF24": "琥珀",
+    "#F97316": "橙色",
+    "#EF4444": "赤红",
+    "#8B5CF6": "紫色",
+    "#06B6D4": "青色"
+  },
+  "time": {
+    "today": "今天",
+    "yesterday": "昨天"
+  },
+  "export": {
+    "title": "# 📍 批注导出 — ${name}\n\n",
+    "exportTime": "> 导出时间：",
+    "totalCount": "> 批注总数：",
+    "items": " 条",
+    "note": "**批注：** ",
+    "location": "*位置：",
+    "fileType": "*类型：",
+    "time": "*时间：",
+    "pdf": "PDF",
+    "markdown": "Markdown",
+    "fileSuffix": "-批注导出.md",
+    "exportDone": "✅ 已导出："
+  }
+}
+};
+
+function readLocale(node: LocaleNode | undefined, key: string): LocaleNode | undefined {
+  if (!node || typeof node === "string") {
+    return undefined;
+  }
+  return node[key];
+}
+
+export function t(key: string, plugin?: { settings?: { language?: string } }): string {
+  const lang = plugin?.settings?.language || "zh";
+  const keys = key.split(".");
+  let result: LocaleNode | undefined = LANGUAGES[lang];
+  for (let i = 0; i < keys.length; i++) {
+    const keyPart = keys[i];
+    if (keyPart === undefined) {
+      return key;
+    }
+    const next = readLocale(result, keyPart);
+    if (next !== undefined) {
+      result = next;
+    } else {
+      result = LANGUAGES.zh;
+      for (let j = i; j < keys.length; j++) {
+        const fallbackKey = keys[j];
+        if (fallbackKey === undefined) {
+          return key;
+        }
+        const fallbackNext = readLocale(result, fallbackKey);
+        if (fallbackNext !== undefined) {
+          result = fallbackNext;
+        } else {
+          return key;
+        }
+      }
+      return typeof result === "string" ? result : key;
+    }
+  }
+  return typeof result === "string" ? result : key;
+}
+
+/** 弹窗和侧边栏里显示的保存快捷键。Mac 用 ⌘↩，其他系统用 Ctrl+Enter。 */
+export function chordLabel(): string {
+  return Platform.isMacOS ? "⌘↩" : "Ctrl+Enter";
+}
+
+export interface StoredHotkey {
+  modifiers?: string[];
+  key?: string;
+}
+
+export function formatStoredHotkey(hotkey: StoredHotkey): string {
+  const mods = (hotkey.modifiers ?? []).map((mod) => {
+    if (mod === "Mod")
+      return Platform.isMacOS ? "⌘" : "Ctrl";
+    if (mod === "Shift")
+      return Platform.isMacOS ? "⇧" : "Shift";
+    if (mod === "Alt")
+      return Platform.isMacOS ? "⌥" : "Alt";
+    if (mod === "Meta")
+      return Platform.isMacOS ? "⌘" : "Win";
+    if (mod === "Ctrl")
+      return "Ctrl";
+    return mod;
+  });
+  const rawKey = hotkey.key ?? "";
+  const prettyKey = rawKey.length === 1 ? rawKey.toUpperCase() : rawKey;
+  if (Platform.isMacOS)
+    return `${mods.join("")}${prettyKey}`;
+  return [...mods, prettyKey].filter((part) => part.length > 0).join("+");
+}
+
+export function getColorName(color: string, plugin?: { settings?: { language?: string } }): string {
+  const lang = plugin?.settings?.language || "zh";
+  const names = readLocale(LANGUAGES[lang], "colorNames");
+  const name = names && typeof names !== "string" ? names[color] : undefined;
+  return typeof name === "string" ? name : color;
+}

@@ -1,0 +1,166 @@
+/** 批注数据的形状、默认设置，以及和编辑器选区相关的纯函数。 */
+import { Editor } from "obsidian";
+import { resolveAnnotationTextRange, type TextSpan } from "./annotation-range";
+import { t } from "./i18n";
+import type {
+  Annotation,
+  AnnotationDraft,
+  AnnotationPosition,
+  AnnotatorSettings,
+  LoosePosition,
+  MarkdownPosition,
+  PdfPosition,
+  PdfRect,
+  TextRange,
+} from "./types";
+
+export function getFileType(file: { extension?: string } | null | undefined): "pdf" | "markdown" {
+  return file?.extension === "pdf" ? "pdf" : "markdown";
+}
+export function isMarkdownPosition(position: AnnotationPosition | LoosePosition | null | undefined): position is MarkdownPosition {
+  return !!position && (position.kind === "markdown" || ("startLine" in position && typeof position.startLine === "number"));
+}
+export function isPdfPosition(position: AnnotationPosition | LoosePosition | null | undefined): position is PdfPosition {
+  return !!position && position.kind === "pdf";
+}
+export function normalizeRect(rect: Partial<PdfRect> | null | undefined): PdfRect | null {
+  if (!rect)
+    return null;
+  const x = Number(rect.x);
+  const y = Number(rect.y);
+  const width = Number(rect.width);
+  const height = Number(rect.height);
+  if (![x, y, width, height].every(Number.isFinite))
+    return null;
+  if (width <= 0 || height <= 0)
+    return null;
+  return {
+    x: Math.max(0, x),
+    y: Math.max(0, y),
+    width,
+    height
+  };
+}
+export function normalizeAnnotation(annotation: AnnotationDraft | null | undefined): Annotation | null {
+  if (!annotation || !annotation.filePath)
+    return null;
+  const rawFileType = annotation.fileType || (annotation.filePath.toLowerCase().endsWith(".pdf") ? "pdf" : "markdown");
+  const fileType: "pdf" | "markdown" = rawFileType === "pdf" ? "pdf" : "markdown";
+  const base = {
+    id: annotation.id || generateId(),
+    filePath: annotation.filePath,
+    fileType,
+    type: annotation.type || "highlight",
+    color: annotation.color || DEFAULT_SETTINGS.defaultColor,
+    highlightedText: annotation.highlightedText || "",
+    noteContent: annotation.noteContent || "",
+    groupId: annotation.groupId || null,
+    created: typeof annotation.created === "number" ? annotation.created : Date.now(),
+    updated: typeof annotation.updated === "number" ? annotation.updated : Date.now(),
+    order: typeof annotation.order === "number" ? annotation.order : typeof annotation.created === "number" ? annotation.created : Date.now()
+  };
+  if (fileType === "pdf") {
+    const position = annotation.position || {};
+    const rects = Array.isArray(position.rects) ? position.rects.map((rect) => normalizeRect(rect)).filter((rect): rect is PdfRect => rect !== null) : [];
+    if (rects.length === 0 || !Number.isFinite(position.page))
+      return null;
+    return {
+      ...base,
+      position: {
+        kind: "pdf",
+        page: Number(position.page),
+        rects,
+        quote: position.quote || annotation.highlightedText || "",
+        pageLabel: position.pageLabel || String(position.page),
+        viewportBase: position.viewportBase && Number.isFinite(position.viewportBase.pageWidth) && Number.isFinite(position.viewportBase.pageHeight) ? {
+          pageWidth: Number(position.viewportBase.pageWidth),
+          pageHeight: Number(position.viewportBase.pageHeight)
+        } : null
+      }
+    };
+  }
+  const position = annotation.position || {};
+  if (!isMarkdownPosition(position))
+    return null;
+  return {
+    ...base,
+    position: {
+      kind: "markdown",
+      startLine: Number(position.startLine) || 0,
+      startCh: Number(position.startCh) || 0,
+      endLine: Number(position.endLine) || 0,
+      endCh: Number(position.endCh) || 0
+    }
+  };
+}
+
+export function getAnnotationLocationLabel(annotation: Annotation, plugin?: { settings?: { language?: string } }): string {
+  if (annotation.fileType === "pdf" && isPdfPosition(annotation.position)) {
+    return t("ui.locationPage", plugin).replace("{page}", String(annotation.position.page));
+  }
+  if (!isMarkdownPosition(annotation.position)) {
+    return "";
+  }
+  return t("ui.locationLine", plugin).replace("{line}", String(annotation.position.startLine + 1));
+}
+
+export interface AnnotationStoreData {
+  annotations?: unknown;
+  groups?: unknown;
+  settings?: Partial<AnnotatorSettings>;
+}
+
+export const DEFAULT_SETTINGS: AnnotatorSettings = {
+  defaultColor: "#FCD34D",
+  colors: ["#FCD34D", "#FBBF24", "#F97316", "#EF4444", "#8B5CF6", "#06B6D4"],
+  customHighlightColor: "",
+  customHighlightColorName: "自定义",
+  language: "zh"
+};
+export const ANNOTATION_STORE_DIR = "article-annotator";
+export const ANNOTATION_STORE_FILE = "annotations.json";
+export const LEGACY_ANNOTATION_STORE_DIR = "_article-annotator";
+export function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+}
+export function formatTime(ts: number, plugin?: { settings?: { language?: string } }): string {
+  const d = new Date(ts);
+  const now = /* @__PURE__ */ new Date();
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  if (d.toDateString() === now.toDateString()) {
+    return `${t("time.today", plugin)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) {
+    return `${t("time.yesterday", plugin)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+export function captureMarkdownRange(editor: Editor): TextSpan | null {
+  const lines: string[] = [];
+  const lineCount = editor.lineCount();
+  for (let line = 0; line < lineCount; line++) {
+    lines.push(editor.getLine(line));
+  }
+  const cursor = editor.getCursor();
+  return resolveAnnotationTextRange(lines, cursor, {
+    text: editor.getSelection(),
+    from: editor.getCursor("from"),
+    to: editor.getCursor("to"),
+  });
+}
+
+export function positionsOverlap(a: TextRange, b: TextRange): boolean {
+  if (a.endLine < b.startLine || a.endLine === b.startLine && a.endCh <= b.startCh)
+    return false;
+  if (a.startLine > b.endLine || a.startLine === b.endLine && a.startCh >= b.endCh)
+    return false;
+  return true;
+}
+
+// ==================== 颜色验证 ====================
+export function validateHexColor(hex: unknown): hex is string {
+  if (!hex || typeof hex !== "string") return false;
+  return /^#[0-9A-Fa-f]{6}$/.test(hex.trim());
+}
