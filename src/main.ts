@@ -21,6 +21,7 @@ import {
 import { Decoration, EditorView } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import { resolveAnnotationTextRange, type TextSpan } from "./annotation-range";
+import { createAnnotationHistoryExtension, dispatchAnnotationHistory, type AnnotationHistoryOp } from "./annotation-history";
 import type {
   Annotation,
   AnnotationDraft,
@@ -133,7 +134,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "shortcutsHint": "💡 Set shortcuts in Obsidian Settings → Hotkeys",
     "notBound": "not bound",
     "readingModeNotice": "Note: Annotations are not visible in Reading mode. Please switch to Editing mode to view highlights.",
-    "aboutText": "Article Annotator 0.2.1 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
+    "aboutText": "Article Annotator 0.2.2 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
   },
   "colorNames": {
     "#FCD34D": "Warm Yellow",
@@ -256,7 +257,7 @@ const LANGUAGES: Record<string, LocaleNode> = {
     "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
     "notBound": "未绑定",
     "readingModeNotice": "说明：阅读模式当前不显示批注高亮，请在编辑模式下查看高亮。",
-    "aboutText": "文章批注 0.2.1 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
+    "aboutText": "文章批注 0.2.2 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
   },
   "colorNames": {
     "#FCD34D": "暖黄",
@@ -611,6 +612,9 @@ export default class ArticleAnnotator extends Plugin {
     console.log("\u{1F4DD} \u6587\u7AE0\u6279\u6CE8: loading...");
     await this.loadSettingsAndData();
     this.registerEditorExtension(highlightField);
+    this.registerEditorExtension(createAnnotationHistoryExtension((op) => {
+      void this.applyAnnotationHistory(op);
+    }));
     const plugin = this;
     this.registerEditorExtension(
       EditorView.domEventHandlers({
@@ -1180,10 +1184,10 @@ export default class ArticleAnnotator extends Plugin {
   getAnnotationsForFile(filePath: string) {
     return this.data.filter((a) => a.filePath === filePath);
   }
-  async addAnnotation(annotation: AnnotationDraft | null | undefined) {
+  async addAnnotation(annotation: AnnotationDraft | null | undefined): Promise<Annotation | null> {
     const normalized = normalizeAnnotation(annotation);
     if (!normalized)
-      return;
+      return null;
     this.data.push(normalized);
     await this.saveAnnotations();
     if (this.sidebarView)
@@ -1191,8 +1195,9 @@ export default class ArticleAnnotator extends Plugin {
     refreshHighlights(this);
     if (normalized.fileType === "pdf")
       this.schedulePdfRender(normalized.filePath, 60);
+    return normalized;
   }
-  async removeAnnotation(id: string) {
+  async removeAnnotation(id: string, recordHistory = false) {
     const target = this.data.find((a) => a.id === id) || null;
     this.data = this.data.filter((a) => a.id !== id);
     await this.saveAnnotations();
@@ -1201,6 +1206,30 @@ export default class ArticleAnnotator extends Plugin {
     refreshHighlights(this);
     if (target?.fileType === "pdf")
       this.schedulePdfRender(target.filePath, 60);
+    if (recordHistory && target)
+      this.pushAnnotationHistory("remove", target);
+  }
+  pushAnnotationHistory(type: AnnotationHistoryOp["type"], annotation: Annotation) {
+    if (annotation.fileType === "pdf")
+      return;
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file || view.file.path !== annotation.filePath)
+      return;
+    const cm = getCodeMirror(view.editor);
+    if (!cm)
+      return;
+    dispatchAnnotationHistory(cm, { type, annotation });
+  }
+  async applyAnnotationHistory(op: AnnotationHistoryOp) {
+    if (op.type === "remove") {
+      if (!this.data.some((item) => item.id === op.annotation.id))
+        return;
+      await this.removeAnnotation(op.annotation.id, false);
+      return;
+    }
+    if (this.data.some((item) => item.id === op.annotation.id))
+      return;
+    await this.addAnnotation(op.annotation);
   }
   async updateAnnotation(id: string, updates: Partial<AnnotationDraft>) {
     const idx = this.data.findIndex((a) => a.id === id);
@@ -1459,7 +1488,9 @@ export default class ArticleAnnotator extends Plugin {
       updated: Date.now(),
       order: Date.now()
     };
-    await this.addAnnotation(annotation);
+    const saved = await this.addAnnotation(annotation);
+    if (saved)
+      this.pushAnnotationHistory("add", saved);
     new Notice(t("notifications.highlightAdded", this).replace("${color}", getColorName(color, this)));
   }
   // ==================== 批注操作 ====================
@@ -1501,8 +1532,13 @@ export default class ArticleAnnotator extends Plugin {
       order: Date.now()
     };
     await this.addAnnotation(annotation);
-    const modal = new NoteModal(this.app, this, annotation, (content) => {
-      this.updateAnnotation(annotation.id, { noteContent: content, type: "note" });
+    const modal = new NoteModal(this.app, this, annotation, async (content) => {
+      await this.updateAnnotation(annotation.id, { noteContent: content, type: "note" });
+      const saved = this.data.find((item) => item.id === annotation.id);
+      if (saved)
+        this.pushAnnotationHistory("add", saved);
+    }, () => {
+      void this.removeAnnotation(annotation.id, false);
     });
     modal.open();
   }
@@ -1596,13 +1632,16 @@ export default class ArticleAnnotator extends Plugin {
 class NoteModal extends Modal {
   plugin: ArticleAnnotator;
   annotation: { id: string; highlightedText: string; color: string; noteContent?: string };
-  onSave: (content: string) => void;
+  onSave: (content: string) => void | Promise<void>;
+  onDiscard: (() => void) | null;
+  committed = false;
 
-  constructor(app: App, plugin: ArticleAnnotator, annotation: { id: string; highlightedText: string; color: string; noteContent?: string }, onSave: (content: string) => void) {
+  constructor(app: App, plugin: ArticleAnnotator, annotation: { id: string; highlightedText: string; color: string; noteContent?: string }, onSave: (content: string) => void | Promise<void>, onDiscard?: () => void) {
     super(app);
     this.plugin = plugin;
     this.annotation = annotation;
     this.onSave = onSave;
+    this.onDiscard = onDiscard ?? null;
   }
   onOpen() {
     const { contentEl } = this;
@@ -1644,7 +1683,8 @@ class NoteModal extends Modal {
     cancelBtn.addClass("aa-button");
     cancelBtn.addClass("aa-button-secondary");
     saveBtn.onclick = () => {
-      this.onSave(textarea.value);
+      this.committed = true;
+      void this.onSave(textarea.value);
       this.close();
       new Notice(t("notifications.annotationSaved", this.plugin));
     };
@@ -1659,6 +1699,8 @@ class NoteModal extends Modal {
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
+    if (!this.committed)
+      this.onDiscard?.();
   }
 };
 class SearchModal extends Modal {
@@ -2129,7 +2171,7 @@ class AnnotatorSidebarView extends ItemView {
       deleteBtn.onclick = async (e) => {
         e.stopPropagation();
         if (!confirm(t("ui.deleteConfirm", this.plugin))) return;
-        await this.plugin.removeAnnotation(a.id);
+        await this.plugin.removeAnnotation(a.id, true);
         this.render();
       };
 
