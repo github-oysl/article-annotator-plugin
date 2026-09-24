@@ -1,6 +1,6 @@
 /** 阅读卡片。侧栏和批注中心用同一套结构和菜单。 */
 import { Menu, Modal, Notice, setIcon } from "obsidian";
-import { formatTime, getAnnotationLocationLabel, validateHexColor } from "./annotation-model";
+import { formatTime, isMarkdownPosition, isPdfPosition, validateHexColor } from "./annotation-model";
 import { getColorName, t } from "./i18n";
 import type ArticleAnnotator from "./main";
 import type { Annotation } from "./types";
@@ -72,7 +72,7 @@ export function mountAnnotationCard(container: HTMLElement, annotation: Annotati
   else if (!located)
     card.createDiv({ cls: "aa-card-edit-hint", text: t("ui.reassignHint", plugin) });
   const meta = card.createDiv("aa-card-meta");
-  const location = annotation.anchor === "file-missing" ? "" : getAnnotationLocationLabel(annotation, plugin);
+  const location = compactLocation(annotation);
   const when = formatTime(annotation.created, plugin);
   meta.createSpan({
     cls: "aa-card-meta-label",
@@ -102,6 +102,17 @@ export function mountAnnotationCard(container: HTMLElement, annotation: Annotati
     openCard();
   });
   return card;
+}
+
+/** 卡片底行用文档里的紧凑写法：L13、P2。对不上的句子不显示旧行号。 */
+function compactLocation(annotation: Annotation): string {
+  if (annotation.anchor && annotation.anchor !== "ok")
+    return "";
+  if (annotation.fileType === "pdf" && isPdfPosition(annotation.position))
+    return `P${annotation.position.page}`;
+  if (isMarkdownPosition(annotation.position))
+    return `L${annotation.position.startLine + 1}`;
+  return "";
 }
 
 function live(plugin: ArticleAnnotator, annotation: Annotation): Annotation {
